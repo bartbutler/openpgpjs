@@ -1009,6 +1009,8 @@ module.exports = {
 module.exports = require('./config.js');
 
 },{"./config.js":16}],18:[function(require,module,exports){
+// Modified by ProtonTech AG
+
 // Modified by Recurity Labs GmbH 
 
 // modified version of http://www.hanewin.net/encrypt/PGdecode.js:
@@ -1028,32 +1030,30 @@ module.exports = require('./config.js');
 
 /**
  * @requires crypto/cipher
- * @requires util
  * @module crypto/cfb
  */
 
 'use strict';
 
-var util = require('../util.js'),
-  cipher = require('./cipher');
+var cipher = require('./cipher');
 
 module.exports = {
 
   /**
    * This function encrypts a given with the specified prefixrandom 
    * using the specified blockcipher to encrypt a message
-   * @param {String} prefixrandom random bytes of block_size length provided 
-   *  as a string to be used in prefixing the data
+   * @param {Uint8Array} prefixrandom random bytes of block_size length
+   *  to be used in prefixing the data
    * @param {String} cipherfn the algorithm cipher class to encrypt
    *  data in one block_size encryption, {@link module:crypto/cipher}.
-   * @param {String} plaintext data to be encrypted provided as a string
-   * @param {String} key binary string representation of key to be used to encrypt the plaintext.
+   * @param {Uint8Array} plaintext data to be encrypted 
+   * @param {Uint8Array} key key to be used to encrypt the plaintext.
    * This will be passed to the cipherfn
    * @param {Boolean} resync a boolean value specifying if a resync of the
    *  IV should be used or not. The encrypteddatapacket uses the 
    *  "old" style with a resync. Encryption within an 
    *  encryptedintegrityprotecteddata packet is not resyncing the IV.
-   * @return {String} a string with the encrypted data
+   * @return {Uint8Array} encrypted data
    */
   encrypt: function(prefixrandom, cipherfn, plaintext, key, resync) {
     cipherfn = new cipher[cipherfn](key);
@@ -1062,7 +1062,12 @@ module.exports = {
     var FR = new Uint8Array(block_size);
     var FRE = new Uint8Array(block_size);
 
-    prefixrandom = prefixrandom + prefixrandom.charAt(block_size - 2) + prefixrandom.charAt(block_size - 1);
+    var new_prefix = new Uint8Array(prefixrandom.length+2);
+    new_prefix.set(prefixrandom);
+    new_prefix[prefixrandom.length] = prefixrandom[block_size-2];
+    new_prefix[prefixrandom.length+1] = prefixrandom[block_size-1];
+    prefixrandom = new_prefix;
+
     var ciphertext = new Uint8Array(plaintext.length + 2 + block_size * 2);
     var i, n, begin;
     var offset = resync ? 0 : 2;
@@ -1079,7 +1084,7 @@ module.exports = {
     //     the plaintext to produce C[1] through C[BS], the first BS octets
     //     of ciphertext.
     for (i = 0; i < block_size; i++) {
-      ciphertext[i] = FRE[i] ^ prefixrandom.charCodeAt(i);
+      ciphertext[i] = FRE[i] ^ prefixrandom[i];
     }
 
     // 4.  FR is loaded with C[1] through C[BS].
@@ -1092,8 +1097,8 @@ module.exports = {
     // 6.  The left two octets of FRE get xored with the next two octets of
     //     data that were prefixed to the plaintext.  This produces C[BS+1]
     //     and C[BS+2], the next two octets of ciphertext.
-    ciphertext[block_size] = FRE[0] ^ prefixrandom.charCodeAt(block_size);
-    ciphertext[block_size + 1] = FRE[1] ^ prefixrandom.charCodeAt(block_size + 1);
+    ciphertext[block_size] = FRE[0] ^ prefixrandom[block_size];
+    ciphertext[block_size + 1] = FRE[1] ^ prefixrandom[block_size + 1];
 
     if (resync) {
       // 7.  (The resync step) FR is loaded with C[3] through C[BS+2].
@@ -1109,7 +1114,7 @@ module.exports = {
     //     data.  This produces C[BS+3] through C[BS+(BS+2)], the next BS
     //     octets of ciphertext.
     for (i = 0; i < block_size; i++) {
-      ciphertext[block_size + 2 + i] = FRE[i + offset] ^ plaintext.charCodeAt(i);
+      ciphertext[block_size + 2 + i] = FRE[i + offset] ^ plaintext[i];
     }
     for (n = block_size; n < plaintext.length + offset; n += block_size) {
       // 10. FR is loaded with C[BS+3] to C[BS + (BS+2)] (which is C11-C18 for
@@ -1124,22 +1129,22 @@ module.exports = {
       // the next BS octets of ciphertext.  These are loaded into FR, and
       // the process is repeated until the plaintext is used up.
       for (i = 0; i < block_size; i++) {
-        ciphertext[block_size + begin + i] = FRE[i] ^ plaintext.charCodeAt(n + i - offset);
+        ciphertext[block_size + begin + i] = FRE[i] ^ plaintext[n + i - offset];
       }
     }
 
     ciphertext = ciphertext.subarray(0, plaintext.length + 2 + block_size);
-    return util.Uint8Array2str(ciphertext);
+    return ciphertext;
   },
 
   /**
    * Decrypts the prefixed data for the Modification Detection Code (MDC) computation
    * @param {String} cipherfn.encrypt Cipher function to use,
    *  @see module:crypto/cipher.
-   * @param {String} key binary string representation of key to be used to check the mdc
+   * @param {Uint8Array} key Uint8Array representation of key to be used to check the mdc
    * This will be passed to the cipherfn
-   * @param {String} ciphertext The encrypted data
-   * @return {String} plaintext Data of D(ciphertext) with blocksize length +2
+   * @param {Uint8Array} ciphertext The encrypted data
+   * @return {Uint8Array} plaintext Data of D(ciphertext) with blocksize length +2
    */
   mdc: function(cipherfn, key, ciphertext) {
     cipherfn = new cipher[cipherfn](key);
@@ -1157,29 +1162,31 @@ module.exports = {
 
     iblock = cipherfn.encrypt(iblock);
     for (i = 0; i < block_size; i++) {
-      ablock[i] = ciphertext.charCodeAt(i);
+      ablock[i] = ciphertext[i];
       iblock[i] ^= ablock[i];
     }
 
     ablock = cipherfn.encrypt(ablock);
 
-    return util.bin2str(iblock) +
-      String.fromCharCode(ablock[0] ^ ciphertext.charCodeAt(block_size)) +
-      String.fromCharCode(ablock[1] ^ ciphertext.charCodeAt(block_size + 1));
+    var result = new Uint8Array(iblock.length + 2);
+    result.set(iblock);
+    result[iblock.length] = ablock[0] ^ ciphertext[block_size];
+    result[iblock.length + 1] = ablock[1] ^ ciphertext[block_size + 1];
+    return result;
   },
   /**
    * This function decrypts a given plaintext using the specified
    * blockcipher to decrypt a message
    * @param {String} cipherfn the algorithm cipher class to decrypt
    *  data in one block_size encryption, {@link module:crypto/cipher}.
-   * @param {String} key binary string representation of key to be used to decrypt the ciphertext.
+   * @param {Uint8Array} key Uint8Array representation of key to be used to decrypt the ciphertext.
    * This will be passed to the cipherfn
-   * @param {String} ciphertext to be decrypted provided as a string
+   * @param {Uint8Array} ciphertext to be decrypted
    * @param {Boolean} resync a boolean value specifying if a resync of the
    *  IV should be used or not. The encrypteddatapacket uses the 
    *  "old" style with a resync. Decryption within an 
    *  encryptedintegrityprotecteddata packet is not resyncing the IV.
-   * @return {String} a string with the plaintext data
+   * @return {Uint8Array} the plaintext data
    */
 
   decrypt: function(cipherfn, key, ciphertext, resync) {
@@ -1188,8 +1195,8 @@ module.exports = {
 
     var iblock = new Uint8Array(block_size);
     var ablock = new Uint8Array(block_size);
-    var i, n = '';
-    var text = '';
+    var i, j, n;
+    var text = new Uint8Array(ciphertext.length - block_size);
 
     // initialisation vector
     for (i = 0; i < block_size; i++) {
@@ -1198,15 +1205,15 @@ module.exports = {
 
     iblock = cipherfn.encrypt(iblock);
     for (i = 0; i < block_size; i++) {
-      ablock[i] = ciphertext.charCodeAt(i);
+      ablock[i] = ciphertext[i];
       iblock[i] ^= ablock[i];
     }
 
     ablock = cipherfn.encrypt(ablock);
 
     // test check octets
-    if (iblock[block_size - 2] != (ablock[0] ^ ciphertext.charCodeAt(block_size)) ||
-        iblock[block_size - 1] != (ablock[1] ^ ciphertext.charCodeAt(block_size + 1))) {
+    if (iblock[block_size - 2] != (ablock[0] ^ ciphertext[block_size]) ||
+        iblock[block_size - 1] != (ablock[1] ^ ciphertext[block_size + 1])) {
       throw new Error('CFB decrypt: invalid key');
     }
 
@@ -1217,34 +1224,41 @@ module.exports = {
 
 		 */
 
+    j = 0;
     if (resync) {
       for (i = 0; i < block_size; i++) {
-        iblock[i] = ciphertext.charCodeAt(i + 2);
+        iblock[i] = ciphertext[i + 2];
       }
       for (n = block_size + 2; n < ciphertext.length; n += block_size) {
         ablock = cipherfn.encrypt(iblock);
 
         for (i = 0; i < block_size && i + n < ciphertext.length; i++) {
-          iblock[i] = ciphertext.charCodeAt(n + i);
-          text += String.fromCharCode(ablock[i] ^ iblock[i]);
+          iblock[i] = ciphertext[n + i];
+          if(j < text.length) {
+            text[j] = ablock[i] ^ iblock[i];
+            j++;
+          }
         }
       }
     } else {
       for (i = 0; i < block_size; i++) {
-        iblock[i] = ciphertext.charCodeAt(i);
+        iblock[i] = ciphertext[i];
       }
       for (n = block_size; n < ciphertext.length; n += block_size) {
         ablock = cipherfn.encrypt(iblock);
         for (i = 0; i < block_size && i + n < ciphertext.length; i++) {
-          iblock[i] = ciphertext.charCodeAt(n + i);
-          text += String.fromCharCode(ablock[i] ^ iblock[i]);
+          iblock[i] = ciphertext[n + i];
+          if(j < text.length) {
+            text[j] = ablock[i] ^ iblock[i];
+            j++;
+          }
         }
       }
     }
 
     n = resync ? 0 : 2;
 
-    text = text.substring(n, ciphertext.length - block_size - 2 + n);
+    text = text.subarray(n, ciphertext.length - block_size - 2 + n);
 
     return text;
   },
@@ -1254,26 +1268,29 @@ module.exports = {
     cipherfn = new cipher[cipherfn](key);
     var block_size = cipherfn.blockSize;
 
-    var blocki = '';
-    var blockc = '';
+    var blocki = new Uint8Array(block_size);
+    var blockc = new Uint8Array(block_size);
     var pos = 0;
-    var cyphertext = '';
-    var tempBlock = '';
-    if (iv === null)
+    var cyphertext = new Uint8Array(plaintext.length);
+    var j = 0;
+
+    if (iv === null) {
       for (i = 0; i < block_size; i++) {
-        blockc += String.fromCharCode(0);
+        blockc[i] = 0;
       }
-    else
-      blockc = iv.substring(0, block_size);
+    }
+    else {
+      for (i = 0; i < block_size; i++) {
+        blockc[i] = iv[i];
+      }
+    }
     while (plaintext.length > block_size * pos) {
-      var encblock = cipherfn.encrypt(util.str2bin(blockc));
-      blocki = plaintext.substring((pos * block_size), (pos * block_size) + block_size);
+      var encblock = cipherfn.encrypt(blockc);
+      blocki = plaintext.subarray((pos * block_size), (pos * block_size) + block_size);
       for (var i = 0; i < blocki.length; i++) {
-        tempBlock += String.fromCharCode(blocki.charCodeAt(i) ^ encblock[i]);
+        blockc[i] = blocki[i] ^ encblock[i];
+        cyphertext[j++] = blockc[i];
       }
-      blockc = tempBlock;
-      tempBlock = '';
-      cyphertext += blockc;
       pos++;
     }
     return cyphertext;
@@ -1283,22 +1300,26 @@ module.exports = {
     cipherfn = new cipher[cipherfn](key);
     var block_size = cipherfn.blockSize;
 
-    var blockp = '';
+    var blockp;
     var pos = 0;
-    var plaintext = '';
+    var plaintext = new Uint8Array(ciphertext.length);
     var offset = 0;
-    var i;
-    if (iv === null)
+    var j = 0;
+
+    if (iv === null) {
+      blockp = new Uint8Array(block_size);
       for (i = 0; i < block_size; i++) {
-        blockp += String.fromCharCode(0);
+        blockp[i] = 0;
       }
-    else
-      blockp = iv.substring(0, block_size);
+    }
+    else {
+      blockp = iv.subarray(0, block_size);
+    }
     while (ciphertext.length > (block_size * pos)) {
-      var decblock = cipherfn.encrypt(util.str2bin(blockp));
-      blockp = ciphertext.substring((pos * (block_size)) + offset, (pos * (block_size)) + (block_size) + offset);
-      for (i = 0; i < blockp.length; i++) {
-        plaintext += String.fromCharCode(blockp.charCodeAt(i) ^ decblock[i]);
+      var decblock = cipherfn.encrypt(blockp);
+      blockp = ciphertext.subarray((pos * (block_size)) + offset, (pos * (block_size)) + (block_size) + offset);
+      for (var i = 0; i < blockp.length; i++) {
+        plaintext[j++] = blockp[i] ^ decblock[i];
       }
       pos++;
     }
@@ -1307,7 +1328,7 @@ module.exports = {
   }
 };
 
-},{"../util.js":74,"./cipher":23}],19:[function(require,module,exports){
+},{"./cipher":23}],19:[function(require,module,exports){
 /* Rijndael (AES) Encryption
  * Copyright 2005 Herbert Hanewinkel, www.haneWIN.de
  * version 1.1, check www.haneWIN.de for the latest version
@@ -1322,13 +1343,10 @@ module.exports = {
  */
 
 /**
- * @requires util
  * @module crypto/cipher/aes
  */
 
 'use strict';
-
-var util = require('../../util.js');
 
 // The round constants used in subkey expansion
 var Rcon = new Uint8Array([
@@ -1708,7 +1726,7 @@ function keyExpansion(key) {
   }
 
   for (i = 0, j = 0; j < keylen; j++, i += 4) {
-    k[j] = key.charCodeAt(i) | (key.charCodeAt(i + 1) << 8) | (key.charCodeAt(i + 2) << 16) | (key.charCodeAt(i + 3) << 24);
+    k[j] = key[i] | (key[i + 1] << 8) | (key[i + 2] << 16) | (key[i + 3] << 24);
   }
 
   for (j = kc - 1; j >= 0; j--) {
@@ -1826,7 +1844,7 @@ for (var i in types) {
   module.exports[types[i]] = makeClass(types[i]);
 }
 
-},{"../../util.js":74}],20:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 /* Modified by Recurity Labs GmbH 
  * 
  * Originally written by nklein software (nklein.com)
@@ -2220,19 +2238,17 @@ Blowfish.prototype.init = function(key) {
   }
 };
 
-var util = require('../../util.js');
-
 // added by Recurity Labs
 
 function BFencrypt(block, key) {
   var bf = new Blowfish();
-  bf.init(util.str2bin(key));
+  bf.init(key);
   return bf.encrypt_block(block);
 }
 
 function BF(key) {
   this.bf = new Blowfish();
-  this.bf.init(util.str2bin(key));
+  this.bf.init(key);
 
   this.encrypt = function(block) {
     return this.bf.encrypt_block(block);
@@ -2244,7 +2260,7 @@ module.exports = BF;
 module.exports.keySize = BF.prototype.keySize = 16;
 module.exports.blockSize = BF.prototype.blockSize = 16;
 
-},{"../../util.js":74}],21:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -2838,11 +2854,10 @@ function openpgp_symenc_cast5() {
     0x04f19130, 0xba6e4ec0, 0x99265164, 0x1ee7230d, 0x50b2ad80, 0xeaee6801, 0x8db2a283, 0xea8bf59e);
 
 }
-var util = require('../../util.js');
 
 function cast5(key) {
   this.cast5 = new openpgp_symenc_cast5();
-  this.cast5.setKey(util.str2bin(key));
+  this.cast5.setKey(key);
 
   this.encrypt = function(block) {
     return this.cast5.encrypt(block);
@@ -2853,7 +2868,7 @@ module.exports = cast5;
 module.exports.blockSize = cast5.prototype.blockSize = 8;
 module.exports.keySize = cast5.prototype.keySize = 16;
 
-},{"../../util.js":74}],22:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 //Paul Tero, July 2001
 //http://www.tero.co.uk/des/
 //
@@ -2940,7 +2955,7 @@ function des(keys, message, encrypt, mode, iv, padding) {
   var cbcleft, cbcleft2, cbcright, cbcright2;
   var endloop, loopinc;
   var len = message.length;
-  var chunk = 0;
+
   //set up the loops for single and triple des
   var iterations = keys.length == 32 ? 3 : 9; //single or triple des
   if (iterations == 3) {
@@ -2957,21 +2972,19 @@ function des(keys, message, encrypt, mode, iv, padding) {
   }
 
   //store the result here
-  result = "";
-  tempresult = "";
+  var result = new Uint8Array(len);
+  var k = 0;
 
   if (mode == 1) { //CBC mode
-    cbcleft = (iv.charCodeAt(m++) << 24) | (iv.charCodeAt(m++) << 16) | (iv.charCodeAt(m++) << 8) | iv.charCodeAt(m++);
-    cbcright = (iv.charCodeAt(m++) << 24) | (iv.charCodeAt(m++) << 16) | (iv.charCodeAt(m++) << 8) | iv.charCodeAt(m++);
+    cbcleft = (iv[m++] << 24) | (iv[m++] << 16) | (iv[m++] << 8) | iv[m++];
+    cbcright = (iv[m++] << 24) | (iv[m++] << 16) | (iv[m++] << 8) | iv[m++];
     m = 0;
   }
 
   //loop through each 64 bit chunk of the message
   while (m < len) {
-    left = (message.charCodeAt(m++) << 24) | (message.charCodeAt(m++) << 16) | (message.charCodeAt(m++) << 8) | message
-      .charCodeAt(m++);
-    right = (message.charCodeAt(m++) << 24) | (message.charCodeAt(m++) << 16) | (message.charCodeAt(m++) << 8) |
-      message.charCodeAt(m++);
+    left = (message[m++] << 24) | (message[m++] << 16) | (message[m++] << 8) | message[m++];
+    right = (message[m++] << 24) | (message[m++] << 16) | (message[m++] << 8) | message[m++];
 
     //for Cipher Block Chaining mode, xor the message with the previous result
     if (mode == 1) {
@@ -3057,19 +3070,16 @@ function des(keys, message, encrypt, mode, iv, padding) {
         right ^= cbcright2;
       }
     }
-    tempresult += String.fromCharCode((left >>> 24), ((left >>> 16) & 0xff), ((left >>> 8) & 0xff), (left & 0xff), (
-      right >>> 24), ((right >>> 16) & 0xff), ((right >>> 8) & 0xff), (right & 0xff));
 
-    chunk += 8;
-    if (chunk == 512) {
-      result += tempresult;
-      tempresult = "";
-      chunk = 0;
-    }
+    result[k++] = (left >>> 24);
+    result[k++] = ((left >>> 16) & 0xff);
+    result[k++] = ((left >>> 8) & 0xff);
+    result[k++] = (left & 0xff);
+    result[k++] = (right >>> 24);
+    result[k++] = ((right >>> 16) & 0xff);
+    result[k++] = ((right >>> 8) & 0xff);
+    result[k++] = (right & 0xff);
   } //for every 8 characters, or 64 bits in the message
-
-  //return the result as an array
-  result += tempresult;
 
   //only remove padding if decrypting - note that you need to use the same padding option for both encrypt and decrypt
   if (!encrypt) {
@@ -3127,8 +3137,8 @@ function des_createKeys(key) {
     temp;
 
   for (var j = 0; j < iterations; j++) { //either 1 or 3 iterations
-    left = (key.charCodeAt(m++) << 24) | (key.charCodeAt(m++) << 16) | (key.charCodeAt(m++) << 8) | key.charCodeAt(m++);
-    right = (key.charCodeAt(m++) << 24) | (key.charCodeAt(m++) << 16) | (key.charCodeAt(m++) << 8) | key.charCodeAt(m++);
+    left = (key[m++] << 24) | (key[m++] << 16) | (key[m++] << 8) | key[m++];
+    right = (key[m++] << 24) | (key[m++] << 16) | (key[m++] << 8) | key[m++];
 
     temp = ((left >>> 4) ^ right) & 0x0f0f0f0f;
     right ^= temp;
@@ -3193,27 +3203,55 @@ function des_createKeys(key) {
 
 function des_addPadding(message, padding) {
   var padLength = 8 - (message.length % 8);
-  if ((padding == 2) && (padLength < 8)) { //pad the message with spaces
-    message += "        ".substr(0, padLength);
+
+  var pad;
+  if (padding == 2 && (padLength < 8)) { //pad the message with spaces
+    pad = " ".charCodeAt(0);
   } else if (padding == 1) { //PKCS7 padding
-    message += String.fromCharCode(padLength, padLength, padLength, padLength, padLength, padLength, padLength,
-      padLength).substr(0, padLength);
+    pad = padLength;
   } else if (!padding && (padLength < 8)) { //pad the message out with null bytes
-    message += "\0\0\0\0\0\0\0\0".substr(0, padLength);
+    pad = 0;
+  } else if (padLength == 8) {
+    return message;
   }
-  return message;
+  else {
+    throw new Error('des: invalid padding');
+  }
+
+  var paddedMessage = new Uint8Array(message.length + padLength);
+  for(var i = 0; i < message.length; i++) {
+    paddedMessage[i] = message[i];
+  }
+  for(var j = 0; j < padLength; j++) {
+    paddedMessage[message.length + j] = pad;
+  }
+
+  return paddedMessage;
 }
 
 function des_removePadding(message, padding) {
+  var padLength = null;
+  var pad;
   if (padding == 2) { // space padded
-    message = message.replace(/ *$/g, "");
+    pad = " ".charCodeAt(0);
   } else if (padding == 1) { // PKCS7
-    var padCount = message.charCodeAt(message.length - 1);
-    message = message.substr(0, message.length - padCount);
+    padLength = message[message.length - 1];
   } else if (!padding) { // null padding
-    message = message.replace(/\0*$/g, "");
+    pad = 0;
   }
-  return message;
+  else {
+    throw new Error('des: invalid padding');
+  }
+
+  if(!padLength) {
+    padLength = 1;
+    while(message[message.length - padLength] === pad) {
+      padLength++;
+    }
+    padLength--;
+  }
+
+  return message.subarray(0, message.length - padLength);
 }
 
 
@@ -3225,15 +3263,15 @@ function Des(key) {
   this.key = [];
 
   for (var i = 0; i < 3; i++) {
-    this.key.push(key.substr(i * 8, 8));
+    this.key.push(new Uint8Array(key.subarray(i * 8, (i * 8) + 8)));
   }
 
   this.encrypt = function(block) {
-    return util.str2bin(des(des_createKeys(this.key[2]),
+    return des(des_createKeys(this.key[2]),
       des(des_createKeys(this.key[1]),
       des(des_createKeys(this.key[0]),
-      util.bin2str(block), true, 0, null, null),
-      false, 0, null, null), true, 0, null, null));
+      block, true, 0, null, null),
+      false, 0, null, null), true, 0, null, null);
   };
 }
 
@@ -3248,12 +3286,12 @@ function OriginalDes(key) {
 
   this.encrypt = function(block, padding) {
     var keys = des_createKeys(this.key);
-    return util.str2bin(des(keys, util.bin2str(block), true, 0, null, padding));
+    return des(keys, block, true, 0, null, padding);
   };
 
   this.decrypt = function(block, padding) {
     var keys = des_createKeys(this.key);
-    return util.str2bin(des(keys, util.bin2str(block), false, 0, null, padding));
+    return des(keys, block, false, 0, null, padding);
   };
 }
 
@@ -3633,14 +3671,12 @@ function createTwofish() {
   };
 }
 
-var util = require('../../util.js');
-
 // added by Recurity Labs
 
 function TFencrypt(block, key) {
   var block_copy = toArray(block);
   var tf = createTwofish();
-  tf.open(util.str2bin(key), 0);
+  tf.open(toArray(key), 0);
   var result = tf.encrypt(block_copy, 0);
   tf.close();
   return result;
@@ -3648,7 +3684,7 @@ function TFencrypt(block, key) {
 
 function TF(key) {
   this.tf = createTwofish();
-  this.tf.open(util.str2bin(key), 0);
+  this.tf.open(toArray(key), 0);
 
   this.encrypt = function(block) {
     return this.tf.encrypt(toArray(block), 0);
@@ -3669,7 +3705,7 @@ module.exports = TF;
 module.exports.keySize = TF.prototype.keySize = 32;
 module.exports.blockSize = TF.prototype.blockSize = 16;
 
-},{"../../util.js":74}],25:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -3884,7 +3920,7 @@ module.exports = {
   /**
    * generate random byte prefix as string for the specified algorithm
    * @param {module:enums.symmetric} algo Algorithm to use (see {@link http://tools.ietf.org/html/rfc4880#section-9.2|RFC 4880 9.2})
-   * @return {String} Random bytes with length equal to the block
+   * @return {Uint8Array} Random bytes with length equal to the block
    * size of the cipher
    */
   getPrefixRandom: function(algo) {
@@ -3894,7 +3930,7 @@ module.exports = {
   /**
    * Generating a session key for the specified symmetric algorithm
    * @param {module:enums.symmetric} algo Algorithm to use (see {@link http://tools.ietf.org/html/rfc4880#section-9.2|RFC 4880 9.2})
-   * @return {String} Random bytes as a string to be used as a key
+   * @return {Uint8Array} Random bytes as a string to be used as a key
    */
   generateSessionKey: function(algo) {
     return random.getRandomBytes(cipher[algo].keySize);
@@ -9246,10 +9282,12 @@ module.exports = RSA;
 
 /**
  * @requires type/mpi
+ * @requires util
  * @module crypto/random
  */
 
-var type_mpi = require('../type/mpi.js');
+var type_mpi = require('../type/mpi.js'),
+  util = require('../util.js');
 var nodeCrypto = null;
 
 if (typeof window === 'undefined') {
@@ -9258,14 +9296,14 @@ if (typeof window === 'undefined') {
 
 module.exports = {
   /**
-   * Retrieve secure random byte string of the specified length
+   * Retrieve secure random byte array of the specified length
    * @param {Integer} length Length in bytes to generate
-   * @return {String} Random byte string
+   * @return {Uint8Array} Random byte array
    */
   getRandomBytes: function(length) {
-    var result = '';
+    var result = new Uint8Array(length);
     for (var i = 0; i < length; i++) {
-      result += String.fromCharCode(this.getSecureRandomOctet());
+      result[i] = this.getSecureRandomOctet();
     }
     return result;
   },
@@ -9331,7 +9369,7 @@ module.exports = {
     }
     var numBytes = Math.floor((bits + 7) / 8);
 
-    var randomBits = this.getRandomBytes(numBytes);
+    var randomBits = util.Uint8Array2str(this.getRandomBytes(numBytes));
     if (bits % 8 > 0) {
 
       randomBits = String.fromCharCode(
@@ -9419,14 +9457,16 @@ RandomBuffer.prototype.get = function(buf) {
   }
 };
 
-},{"../type/mpi.js":72,"crypto":false}],40:[function(require,module,exports){
+},{"../type/mpi.js":72,"../util.js":74,"crypto":false}],40:[function(require,module,exports){
 /**
+ * @requires util
  * @requires crypto/hash
  * @requires crypto/pkcs1
  * @requires crypto/public_key
  * @module crypto/signature */
 
-var publicKey = require('./public_key'),
+var util = require('../util'),
+  publicKey = require('./public_key'),
   pkcs1 = require('./pkcs1.js'),
   hashModule = require('./hash');
 
@@ -9437,10 +9477,12 @@ module.exports = {
    * @param {module:enums.hash} hash_algo Hash algorithm
    * @param {Array<module:type/mpi>} msg_MPIs Signature multiprecision integers
    * @param {Array<module:type/mpi>} publickey_MPIs Public key multiprecision integers 
-   * @param {String} data Data on where the signature was computed on.
+   * @param {Uint8Array} data Data on where the signature was computed on.
    * @return {Boolean} true if signature (sig_data was equal to data over hash)
    */
   verify: function(algo, hash_algo, msg_MPIs, publickey_MPIs, data) {
+
+    data = util.Uint8Array2str(data);
 
     switch (algo) {
       case 1:
@@ -9485,10 +9527,12 @@ module.exports = {
    * of the private key 
    * @param {Array<module:type/mpi>} secretMPIs Private key multiprecision 
    * integers which is used to sign the data
-   * @param {String} data Data to be signed
+   * @param {Uint8Array} data Data to be signed
    * @return {Array<module:type/mpi>}
    */
   sign: function(hash_algo, algo, keyIntegers, data) {
+
+    data = util.Uint8Array2str(data);
 
     var m;
 
@@ -9504,7 +9548,6 @@ module.exports = {
         var n = keyIntegers[0].toBigInteger();
         m = pkcs1.emsa.encode(hash_algo,
           data, keyIntegers[0].byteLength());
-
         return rsa.sign(m, d, n).toMPI();
 
       case 17:
@@ -9529,7 +9572,7 @@ module.exports = {
   }
 };
 
-},{"./hash":28,"./pkcs1.js":33,"./public_key":36}],41:[function(require,module,exports){
+},{"../util":74,"./hash":28,"./pkcs1.js":33,"./public_key":36}],41:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -9647,10 +9690,8 @@ function addheader() {
  */
 function getCheckSum(data) {
   var c = createcrc24(data);
-  var str = "" + String.fromCharCode(c >> 16) +
-    String.fromCharCode((c >> 8) & 0xFF) +
-    String.fromCharCode(c & 0xFF);
-  return base64.encode(str);
+  var bytes = new Uint8Array([c >> 16, (c >> 8) & 0xFF, c & 0xFF]);
+  return base64.encode(bytes);
 }
 
 /**
@@ -9710,27 +9751,27 @@ function createcrc24(input) {
   var index = 0;
 
   while ((input.length - index) > 16) {
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 1)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 2)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 3)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 4)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 5)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 6)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 7)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 8)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 9)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 10)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 11)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 12)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 13)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 14)) & 0xff];
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index + 15)) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 1]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 2]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 3]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 4]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 5]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 6]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 7]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 8]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 9]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 10]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 11]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 12]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 13]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 14]) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index + 15]) & 0xff];
     index += 16;
   }
 
   for (var j = index; j < input.length; j++) {
-    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index++)) & 0xff];
+    crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input[index++]) & 0xff];
   }
   return crc & 0xffffff;
 }
@@ -9960,8 +10001,8 @@ module.exports = {
 var b64s = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 /**
- * Convert binary string to radix-64
- * @param {String} t binary string to convert
+ * Convert binary array to radix-64
+ * @param {Uint8Array} t Uint8Array to convert
  * @returns {string} radix-64 version of input string
  * @static
  */
@@ -9973,7 +10014,7 @@ function s2r(t) {
   var tl = t.length;
 
   for (n = 0; n < tl; n++) {
-    c = t.charCodeAt(n);
+    c = t[n];
     if (s === 0) {
       r += b64s.charAt((c >> 2) & 63);
       a = (c & 3) << 4;
@@ -10013,14 +10054,14 @@ function s2r(t) {
 }
 
 /**
- * Convert radix-64 to binary string
+ * Convert radix-64 to binary array
  * @param {String} t radix-64 string to convert
- * @returns {string} binary version of input string
+ * @returns {Uint8Array} binary array version of input string
  * @static
  */
 function r2s(t) {
   var c, n;
-  var r = '',
+  var r = [],
     s = 0,
     a = 0;
   var tl = t.length;
@@ -10029,12 +10070,12 @@ function r2s(t) {
     c = b64s.indexOf(t.charAt(n));
     if (c >= 0) {
       if (s)
-        r += String.fromCharCode(a | (c >> (6 - s)) & 255);
+        r.push(a | (c >> (6 - s)) & 255);
       s = (s + 2) & 7;
       a = (c << s) & 255;
     }
   }
-  return r;
+  return new Uint8Array(r);
 }
 
 module.exports = {
@@ -10658,7 +10699,7 @@ Key.prototype.getUserIds = function() {
   var userids = [];
   for (var i = 0; i < this.users.length; i++) {
     if (this.users[i].userId) {
-      userids.push(this.users[i].userId.write());
+      userids.push(util.Uint8Array2str(this.users[i].userId.write()));
     }
   }
   return userids;
@@ -11031,7 +11072,7 @@ function mergeSignatures(source, dest, attr, checkFn) {
       source.forEach(function(sourceSig) {
         if (!sourceSig.isExpired() && (!checkFn || checkFn(sourceSig)) &&
             !dest[attr].some(function(destSig) {
-              return destSig.signature === sourceSig.signature;
+              return util.equalsUint8Array(destSig.signature,sourceSig.signature);
             })) {
           dest[attr].push(sourceSig);
         }
@@ -11393,7 +11434,7 @@ function generate(options) {
     packetlist = new packet.List();
 
     userIdPacket = new packet.Userid();
-    userIdPacket.read(options.userId);
+    userIdPacket.read(util.str2Uint8Array(options.userId));
 
     dataToSign = {};
     dataToSign.userid = userIdPacket;
@@ -11848,7 +11889,8 @@ function storeKeys(storage, itemname, keys) {
 
 'use strict';
 
-var packet = require('./packet'),
+var util = require('./util.js'),
+  packet = require('./packet'),
   enums = require('./enums.js'),
   armor = require('./encoding/armor.js'),
   config = require('./config'),
@@ -12229,11 +12271,11 @@ function read(input) {
 /**
  * Create a message object from signed content and a detached armored signature.
  * @param {String} content An 8 bit ascii string containing e.g. a MIME subtree with text nodes or attachments
- * @param {String} detachedSignature The detached ascii armored PGP signarure
+ * @param {String} detachedSignature The detached ascii armored PGP signature
  */
 function readSignedContent(content, detachedSignature) {
   var literalDataPacket = new packet.Literal();
-  literalDataPacket.setBytes(content, enums.read(enums.literal, enums.literal.binary));
+  literalDataPacket.setBytes(util.str2Uint8Array(content), enums.read(enums.literal, enums.literal.binary));
   var packetlist = new packet.List();
   packetlist.push(literalDataPacket);
   var input = armor.decode(detachedSignature).data;
@@ -12264,12 +12306,16 @@ function fromText(text, filename) {
 
 /**
  * creates new message object from binary data
- * @param {String} bytes
+ * @param {Uint8Array} bytes
  * @param {String} filename (optional)
  * @return {module:message~Message} new message object
  * @static
  */
 function fromBinary(bytes, filename) {
+  if(!Uint8Array.prototype.isPrototypeOf(bytes)) {
+    throw new Error('Data must be in the form of a Uint8Array');
+  }
+
   var literalDataPacket = new packet.Literal();
   literalDataPacket.setBytes(bytes, enums.read(enums.literal, enums.literal.binary));
   if(filename !== undefined) {
@@ -12289,7 +12335,7 @@ exports.fromText = fromText;
 exports.fromBinary = fromBinary;
 exports.encryptSessionKey = encryptSessionKey;
 
-},{"./config":17,"./crypto":32,"./encoding/armor.js":41,"./enums.js":43,"./key.js":45,"./packet":53}],50:[function(require,module,exports){
+},{"./config":17,"./crypto":32,"./encoding/armor.js":41,"./enums.js":43,"./key.js":45,"./packet":53,"./util.js":74}],50:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -12385,13 +12431,12 @@ function encryptMessage(keys, data, passwords, params) {
   var filename, binary, packets;
   if(params) {
     filename = params.filename;
-    binary = params.binary;
     packets = params.packets;
   }
 
   return execute(function() {
     var msg, armored;
-    if(binary) {
+    if(data instanceof Uint8Array) {
       msg = message.fromBinary(data, filename);
     }
     else {
@@ -12846,10 +12891,10 @@ function Compressed() {
  */
 Compressed.prototype.read = function (bytes) {
   // One octet that gives the algorithm used to compress the packet.
-  this.algorithm = enums.read(enums.compression, bytes.charCodeAt(0));
+  this.algorithm = enums.read(enums.compression, bytes[0]);
 
   // Compressed data, which makes up the remainder of the packet.
-  this.compressed = bytes.substr(1);
+  this.compressed = bytes.subarray(1, bytes.length);
 
   this.decompress();
 };
@@ -12864,7 +12909,7 @@ Compressed.prototype.write = function () {
   if (this.compressed === null)
     this.compress();
 
-  return String.fromCharCode(enums.write(enums.compression, this.algorithm)) + this.compressed;
+  return util.concatUint8Array(new Uint8Array([enums.write(enums.compression, this.algorithm)]), this.compressed);
 };
 
 
@@ -12881,13 +12926,13 @@ Compressed.prototype.decompress = function () {
       break;
 
     case 'zip':
-      var inflate = new RawInflate.Zlib.RawInflate(util.str2Uint8Array(this.compressed));
-      decompressed = util.Uint8Array2str(inflate.decompress());
+      var inflate = new RawInflate.Zlib.RawInflate(this.compressed);
+      decompressed = inflate.decompress();
       break;
 
     case 'zlib':
-      var inflate = new Zlib.Zlib.Inflate(util.str2Uint8Array(this.compressed));
-      decompressed = util.Uint8Array2str(inflate.decompress());
+      var inflate = new Zlib.Zlib.Inflate(this.compressed);
+      decompressed = inflate.decompress();
       break;
 
     case 'bzip2':
@@ -12917,14 +12962,14 @@ Compressed.prototype.compress = function () {
 
     case 'zip':
       // - ZIP [RFC1951]
-      deflate = new RawDeflate.Zlib.RawDeflate(util.str2Uint8Array(uncompressed));
-      this.compressed = util.Uint8Array2str(deflate.compress());
+      deflate = new RawDeflate.Zlib.RawDeflate(uncompressed);
+      this.compressed = deflate.compress();
       break;
 
     case 'zlib':
       // - ZLIB [RFC1950]
-      deflate = new Zlib.Zlib.Deflate(util.str2Uint8Array(uncompressed));
-      this.compressed = util.Uint8Array2str(deflate.compress());
+      deflate = new Zlib.Zlib.Deflate(uncompressed);
+      this.compressed = deflate.compress();
       break;
 
     case 'bzip2':
@@ -12992,8 +13037,8 @@ var util = require('../util.js'),
 function Literal() {
   this.tag = enums.packet.literal;
   this.format = 'utf8'; // default format for literal data packets
-  this.data = ''; // literal data representation as native JavaScript string or bytes
   this.date = new Date();
+  this.data = new Uint8Array(0); // literal data representation
   this.filename = 'msg.txt';
 }
 
@@ -13006,7 +13051,7 @@ Literal.prototype.setText = function (text) {
   // normalize EOL to \r\n
   text = text.replace(/\r/g, '').replace(/\n/g, '\r\n');
   // encode UTF8
-  this.data = this.format == 'utf8' ? util.encode_utf8(text) : text;
+  this.data = this.format == 'utf8' ? util.str2Uint8Array(util.encode_utf8(text)) : util.str2Uint8Array(text);
 };
 
 /**
@@ -13016,14 +13061,14 @@ Literal.prototype.setText = function (text) {
  */
 Literal.prototype.getText = function () {
   // decode UTF8
-  var text = util.decode_utf8(this.data);
+  var text = util.decode_utf8(util.Uint8Array2str(this.data));
   // normalize EOL to \n
   return text.replace(/\r\n/g, '\n');
 };
 
 /**
  * Set the packet data to value represented by the provided string of bytes.
- * @param {String} bytes The string of bytes
+ * @param {Uint8Array} bytes The string of bytes
  * @param {utf8|binary|text} format The format of the string of bytes
  */
 Literal.prototype.setBytes = function (bytes, format) {
@@ -13034,7 +13079,7 @@ Literal.prototype.setBytes = function (bytes, format) {
 
 /**
  * Get the byte sequence representing the literal packet data
- * @returns {String} A sequence of bytes
+ * @returns {Uint8Array} A sequence of bytes
  */
 Literal.prototype.getBytes = function () {
   return this.data;
@@ -13062,25 +13107,20 @@ Literal.prototype.getFilename = function() {
 /**
  * Parsing function for a literal data packet (tag 11).
  *
- * @param {String} input Payload of a tag 11 packet
- * @param {Integer} position
- *            Position to start reading from the input string
- * @param {Integer} len
- *            Length of the packet or the remaining length of
- *            input at position
+ * @param {Uint8Array} input Payload of a tag 11 packet
  * @return {module:packet/literal} object representation
  */
 Literal.prototype.read = function (bytes) {
+
   // - A one-octet field that describes how the data is formatted.
+  var format = enums.read(enums.literal, bytes[0]);
 
-  var format = enums.read(enums.literal, bytes.charCodeAt(0));
+  var filename_len = bytes[1];
+  this.filename = util.decode_utf8(util.Uint8Array2str(bytes.subarray(2, 2 + filename_len)));
 
-  var filename_len = bytes.charCodeAt(1);
-  this.filename = util.decode_utf8(bytes.substr(2, filename_len));
+  this.date = util.readDate(bytes.subarray(2 + filename_len, 2 + filename_len + 4));
 
-  this.date = util.readDate(bytes.substr(2 + filename_len, 4));
-
-  var data = bytes.substring(6 + filename_len);
+  var data = bytes.subarray(6 + filename_len, bytes.length);
 
   this.setBytes(data, format);
 };
@@ -13088,21 +13128,17 @@ Literal.prototype.read = function (bytes) {
 /**
  * Creates a string representation of the packet
  *
- * @param {String} data The data to be inserted as body
- * @return {String} string-representation of the packet
+ * @return {Uint8Array} Uint8Array representation of the packet
  */
 Literal.prototype.write = function () {
-  var filename = util.encode_utf8(this.filename);
+  var filename = util.str2Uint8Array(util.encode_utf8(this.filename));
+  var filename_length = new Uint8Array([filename.length]);
 
+  var format = new Uint8Array([enums.write(enums.literal, this.format)]);
+  var date = util.writeDate(this.date);
   var data = this.getBytes();
 
-  var result = '';
-  result += String.fromCharCode(enums.write(enums.literal, this.format));
-  result += String.fromCharCode(filename.length);
-  result += filename;
-  result += util.writeDate(this.date);
-  result += data;
-  return result;
+  return util.concatUint8Array([format, filename_length, filename, date, data]);
 };
 
 },{"../enums.js":43,"../util.js":74}],55:[function(require,module,exports){
@@ -13160,9 +13196,9 @@ function Marker() {
  * @return {module:packet/marker} Object representation
  */
 Marker.prototype.read = function (bytes) {
-  if (bytes.charCodeAt(0) == 0x50 && // P
-      bytes.charCodeAt(1) == 0x47 && // G
-      bytes.charCodeAt(2) == 0x50) // P
+  if (bytes[0] == 0x50 && // P
+      bytes[1] == 0x47 && // G
+      bytes[2] == 0x50) // P
     return true;
   // marker packet does not contain "PGP"
   return false;
@@ -13194,6 +13230,7 @@ Marker.prototype.read = function (bytes) {
  * hashes needed to verify the signature.  It allows the Signature
  * packet to be placed at the end of the message, so that the signer
  * can compute the entire signed message in one pass.
+* @requires util
  * @requires enums
  * @requires type/keyid
  * @module packet/one_pass_signature
@@ -13201,7 +13238,8 @@ Marker.prototype.read = function (bytes) {
 
 module.exports = OnePassSignature;
 
-var enums = require('../enums.js'),
+var util = require('../util.js'),
+  enums = require('../enums.js'),
   type_keyid = require('../type/keyid.js');
 
 /**
@@ -13219,52 +13257,50 @@ function OnePassSignature() {
 
 /**
  * parsing function for a one-pass signature packet (tag 4).
- * @param {String} bytes payload of a tag 4 packet
+ * @param {Uint8Array} bytes payload of a tag 4 packet
  * @return {module:packet/one_pass_signature} object representation
  */
 OnePassSignature.prototype.read = function (bytes) {
   var mypos = 0;
   // A one-octet version number.  The current version is 3.
-  this.version = bytes.charCodeAt(mypos++);
+  this.version = bytes[mypos++];
 
   // A one-octet signature type.  Signature types are described in
   //   Section 5.2.1.
-  this.type = enums.read(enums.signature, bytes.charCodeAt(mypos++));
+  this.type = enums.read(enums.signature, bytes[mypos++]);
 
   // A one-octet number describing the hash algorithm used.
-  this.hashAlgorithm = enums.read(enums.hash, bytes.charCodeAt(mypos++));
+  this.hashAlgorithm = enums.read(enums.hash, bytes[mypos++]);
 
   // A one-octet number describing the public-key algorithm used.
-  this.publicKeyAlgorithm = enums.read(enums.publicKey, bytes.charCodeAt(mypos++));
+  this.publicKeyAlgorithm = enums.read(enums.publicKey, bytes[mypos++]);
 
   // An eight-octet number holding the Key ID of the signing key.
   this.signingKeyId = new type_keyid();
-  this.signingKeyId.read(bytes.substr(mypos));
+  this.signingKeyId.read(bytes.subarray(mypos, mypos + 8));
   mypos += 8;
 
   // A one-octet number holding a flag showing whether the signature
   //   is nested.  A zero value indicates that the next packet is
   //   another One-Pass Signature packet that describes another
   //   signature to be applied to the same message data.
-  this.flags = bytes.charCodeAt(mypos++);
+  this.flags = bytes[mypos++];
   return this;
 };
 
 /**
  * creates a string representation of a one-pass signature packet
- * @return {String} a string representation of a one-pass signature packet
+ * @return {Uint8Array} a Uint8Array representation of a one-pass signature packet
  */
 OnePassSignature.prototype.write = function () {
-  var result = "";
 
-  result += String.fromCharCode(3);
-  result += String.fromCharCode(enums.write(enums.signature, this.type));
-  result += String.fromCharCode(enums.write(enums.hash, this.hashAlgorithm));
-  result += String.fromCharCode(enums.write(enums.publicKey, this.publicKeyAlgorithm));
-  result += this.signingKeyId.write();
-  result += String.fromCharCode(this.flags);
+  var start = new Uint8Array([3, enums.write(enums.signature, this.type), 
+    enums.write(enums.hash, this.hashAlgorithm),
+    enums.write(enums.publicKey, this.publicKeyAlgorithm)]);
 
-  return result;
+  var end = new Uint8Array([this.flags]); 
+
+  return util.concatUint8Array([start, this.signingKeyId.write(), end]);
 };
 
 /**
@@ -13274,7 +13310,7 @@ OnePassSignature.prototype.postCloneTypeFix = function() {
   this.signingKeyId = type_keyid.fromClone(this.signingKeyId);
 };
 
-},{"../enums.js":43,"../type/keyid.js":71}],57:[function(require,module,exports){
+},{"../enums.js":43,"../type/keyid.js":71,"../util.js":74}],57:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -13305,17 +13341,17 @@ module.exports = {
   readSimpleLength: function(bytes) {
     var len = 0,
       offset,
-      type = bytes.charCodeAt(0);
+      type = bytes[0];
 
 
     if (type < 192) {
-      len = bytes.charCodeAt(0);
+      len = bytes[0];
       offset = 1;
     } else if (type < 255) {
-      len = ((bytes.charCodeAt(0) - 192) << 8) + (bytes.charCodeAt(1)) + 192;
+      len = ((bytes[0] - 192) << 8) + (bytes[1]) + 192;
       offset = 2;
     } else if (type == 255) {
-      len = util.readNumber(bytes.substr(1, 4));
+      len = util.readNumber(bytes.subarray(1, 1 + 4));
       offset = 5;
     }
 
@@ -13330,24 +13366,21 @@ module.exports = {
    * string
    * 
    * @param {Integer} length The length to encode
-   * @return {String} String with openpgp length representation
+   * @return {Uint8Array} String with openpgp length representation
    */
   writeSimpleLength: function(length) {
-    var result = "";
+
     if (length < 192) {
-      result += String.fromCharCode(length);
+      return new Uint8Array([length]);
     } else if (length > 191 && length < 8384) {
       /*
        * let a = (total data packet length) - 192 let bc = two octet
        * representation of a let d = b + 192
        */
-      result += String.fromCharCode(((length - 192) >> 8) + 192);
-      result += String.fromCharCode((length - 192) & 0xFF);
+      return new Uint8Array([((length - 192) >> 8) + 192, (length - 192) & 0xFF]);
     } else {
-      result += String.fromCharCode(255);
-      result += util.writeNumber(length, 4);
+      return util.concatUint8Array([new Uint8Array([255]), util.writeNumber(length, 4)]);
     }
-    return result;
   },
 
   /**
@@ -13360,10 +13393,7 @@ module.exports = {
    */
   writeHeader: function(tag_type, length) {
     /* we're only generating v4 packet headers here */
-    var result = "";
-    result += String.fromCharCode(0xC0 | tag_type);
-    result += this.writeSimpleLength(length);
-    return result;
+    return util.concatUint8Array([new Uint8Array([0xC0 | tag_type]), this.writeSimpleLength(length)]);
   },
 
   /**
@@ -13375,18 +13405,14 @@ module.exports = {
    * @return {String} String of the header
    */
   writeOldHeader: function(tag_type, length) {
-    var result = "";
+
     if (length < 256) {
-      result += String.fromCharCode(0x80 | (tag_type << 2));
-      result += String.fromCharCode(length);
+      return new Uint8Array([0x80 | (tag_type << 2), length]);
     } else if (length < 65536) {
-      result += String.fromCharCode(0x80 | (tag_type << 2) | 1);
-      result += util.writeNumber(length, 2);
+      return util.concatUint8Array([0x80 | (tag_type << 2) | 1, util.writeNumber(length, 2)]);
     } else {
-      result += String.fromCharCode(0x80 | (tag_type << 2) | 2);
-      result += util.writeNumber(length, 4);
+      return util.concatUint8Array([0x80 | (tag_type << 2) | 2, util.writeNumber(length, 4)]);
     }
-    return result;
   },
 
   /**
@@ -13399,9 +13425,9 @@ module.exports = {
    */
   read: function(input, position, len) {
     // some sanity checks
-    if (input === null || input.length <= position || input.substring(position).length < 2 || (input.charCodeAt(position) &
+    if (input === null || input.length <= position || input.subarray(position, input.length).length < 2 || (input[position] &
       0x80) === 0) {
-      throw new Error("Error during parsing. This message / key is probably not containing a valid OpenPGP format.");
+      throw new Error("Error during parsing. This message / key probably does not conform to a valid OpenPGP format.");
     }
     var mypos = position;
     var tag = -1;
@@ -13409,18 +13435,18 @@ module.exports = {
     var packet_length;
 
     format = 0; // 0 = old format; 1 = new format
-    if ((input.charCodeAt(mypos) & 0x40) !== 0) {
+    if ((input[mypos] & 0x40) !== 0) {
       format = 1;
     }
 
     var packet_length_type;
     if (format) {
       // new format header
-      tag = input.charCodeAt(mypos) & 0x3F; // bit 5-0
+      tag = input[mypos] & 0x3F; // bit 5-0
     } else {
       // old format header
-      tag = (input.charCodeAt(mypos) & 0x3F) >> 2; // bit 5-2
-      packet_length_type = input.charCodeAt(mypos) & 0x03; // bit 1-0
+      tag = (input[mypos] & 0x3F) >> 2; // bit 5-2
+      packet_length_type = input[mypos] & 0x03; // bit 1-0
     }
 
     // header octet parsing done
@@ -13437,18 +13463,18 @@ module.exports = {
         case 0:
           // The packet has a one-octet length. The header is 2 octets
           // long.
-          packet_length = input.charCodeAt(mypos++);
+          packet_length = input[mypos++];
           break;
         case 1:
           // The packet has a two-octet length. The header is 3 octets
           // long.
-          packet_length = (input.charCodeAt(mypos++) << 8) | input.charCodeAt(mypos++);
+          packet_length = (input[mypos++] << 8) | input[mypos++];
           break;
         case 2:
           // The packet has a four-octet length. The header is 5
           // octets long.
-          packet_length = (input.charCodeAt(mypos++) << 24) | (input.charCodeAt(mypos++) << 16) | (input.charCodeAt(mypos++) <<
-            8) | input.charCodeAt(mypos++);
+          packet_length = (input[mypos++] << 24) | (input[mypos++] << 16) | (input[mypos++] <<
+            8) | input[mypos++];
           break;
         default:
           // 3 - The packet is of indeterminate length. The header is 1
@@ -13469,44 +13495,43 @@ module.exports = {
     {
 
       // 4.2.2.1. One-Octet Lengths
-      if (input.charCodeAt(mypos) < 192) {
-        packet_length = input.charCodeAt(mypos++);
+      if (input[mypos] < 192) {
+        packet_length = input[mypos++];
         util.print_debug("1 byte length:" + packet_length);
         // 4.2.2.2. Two-Octet Lengths
-      } else if (input.charCodeAt(mypos) >= 192 && input.charCodeAt(mypos) < 224) {
-        packet_length = ((input.charCodeAt(mypos++) - 192) << 8) + (input.charCodeAt(mypos++)) + 192;
+      } else if (input[mypos] >= 192 && input[mypos] < 224) {
+        packet_length = ((input[mypos++] - 192) << 8) + (input[mypos++]) + 192;
         util.print_debug("2 byte length:" + packet_length);
         // 4.2.2.4. Partial Body Lengths
-      } else if (input.charCodeAt(mypos) > 223 && input.charCodeAt(mypos) < 255) {
-        packet_length = 1 << (input.charCodeAt(mypos++) & 0x1F);
+      } else if (input[mypos] > 223 && input[mypos] < 255) {
+        packet_length = 1 << (input[mypos++] & 0x1F);
         util.print_debug("4 byte length:" + packet_length);
         // EEEK, we're reading the full data here...
         var mypos2 = mypos + packet_length;
-        bodydata = input.substring(mypos, mypos + packet_length);
+        bodydata = [input.subarray(mypos, mypos + packet_length)];
         var tmplen;
         while (true) {
-          if (input.charCodeAt(mypos2) < 192) {
-            tmplen = input.charCodeAt(mypos2++);
+          if (input[mypos2] < 192) {
+            tmplen = input[mypos2++];
             packet_length += tmplen;
-            bodydata += input.substring(mypos2, mypos2 + tmplen);
+            bodydata.push(input.subarray(mypos2, mypos2 + tmplen));
             mypos2 += tmplen;
             break;
-          } else if (input.charCodeAt(mypos2) >= 192 && input.charCodeAt(mypos2) < 224) {
-            tmplen = ((input.charCodeAt(mypos2++) - 192) << 8) + (input.charCodeAt(mypos2++)) + 192;
+          } else if (input[mypos2] >= 192 && input[mypos2] < 224) {
+            tmplen = ((input[mypos2++] - 192) << 8) + (input[mypos2++]) + 192;
             packet_length += tmplen;
-            bodydata += input.substring(mypos2, mypos2 + tmplen);
+            bodydata.push(input.subarray(mypos2, mypos2 + tmplen));
             mypos2 += tmplen;
             break;
-          } else if (input.charCodeAt(mypos2) > 223 && input.charCodeAt(mypos2) < 255) {
-            tmplen = 1 << (input.charCodeAt(mypos2++) & 0x1F);
+          } else if (input[mypos2] > 223 && input[mypos2] < 255) {
+            tmplen = 1 << (input[mypos2++] & 0x1F);
             packet_length += tmplen;
-            bodydata += input.substring(mypos2, mypos2 + tmplen);
+            bodydata.push(input.subarray(mypos2, mypos2 + tmplen));
             mypos2 += tmplen;
           } else {
             mypos2++;
-            tmplen = (input.charCodeAt(mypos2++) << 24) | (input.charCodeAt(mypos2++) << 16) | (input
-              .charCodeAt(mypos2++) << 8) | input.charCodeAt(mypos2++);
-            bodydata += input.substring(mypos2, mypos2 + tmplen);
+            tmplen = (input[mypos2++] << 24) | (input[mypos2++] << 16) | (input[mypos2++] << 8) | input[mypos2++];
+            bodydata.push(input.subarray(mypos2, mypos2 + tmplen));
             packet_length += tmplen;
             mypos2 += tmplen;
             break;
@@ -13516,8 +13541,8 @@ module.exports = {
         // 4.2.2.3. Five-Octet Lengths
       } else {
         mypos++;
-        packet_length = (input.charCodeAt(mypos++) << 24) | (input.charCodeAt(mypos++) << 16) | (input.charCodeAt(mypos++) <<
-          8) | input.charCodeAt(mypos++);
+        packet_length = (input[mypos++] << 24) | (input[mypos++] << 16) | (input[mypos++] <<
+          8) | input[mypos++];
       }
     }
 
@@ -13528,7 +13553,10 @@ module.exports = {
     }
 
     if (bodydata === null) {
-      bodydata = input.substring(mypos, mypos + real_packet_length);
+      bodydata = input.subarray(mypos, mypos + real_packet_length);
+    }
+    else if(bodydata instanceof Array) {
+      bodydata = util.concatUint8Array(bodydata);
     }
 
     return {
@@ -13544,6 +13572,7 @@ module.exports = {
  * This class represents a list of openpgp packets.
  * Take care when iterating over it - the packets themselves
  * are stored as numerical indices.
+ * @requires util
  * @requires enums
  * @requires packet
  * @requires packet/packet
@@ -13552,7 +13581,8 @@ module.exports = {
 
 module.exports = Packetlist;
 
-var packetParser = require('./packet.js'),
+var util = require('../util'),
+  packetParser = require('./packet.js'),
   packets = require('./all_packets.js'),
   enums = require('../enums.js');
 
@@ -13567,7 +13597,7 @@ function Packetlist() {
 }
 /**
  * Reads a stream of binary data and interprents it as a list of packets.
- * @param {String} A binary string of bytes.
+ * @param {Uint8Array} A Uint8Array of bytes.
  */
 Packetlist.prototype.read = function (bytes) {
   var i = 0;
@@ -13588,18 +13618,18 @@ Packetlist.prototype.read = function (bytes) {
 /**
  * Creates a binary representation of openpgp objects contained within the
  * class instance.
- * @returns {String} A binary string of bytes containing valid openpgp packets.
+ * @returns {Uint8Array} A Uint8Array containing valid openpgp packets.
  */
 Packetlist.prototype.write = function () {
-  var bytes = '';
+  var arr = [];
 
   for (var i = 0; i < this.length; i++) {
     var packetbytes = this[i].write();
-    bytes += packetParser.writeHeader(this[i].tag, packetbytes.length);
-    bytes += packetbytes;
+    arr.push(packetParser.writeHeader(this[i].tag, packetbytes.length));
+    arr.push(packetbytes);
   }
 
-  return bytes;
+  return util.concatUint8Array(arr);
 };
 
 /**
@@ -13736,7 +13766,7 @@ module.exports.fromStructuredClone = function(packetlistClone) {
   }
   return packetlist;
 };
-},{"../enums.js":43,"./all_packets.js":51,"./packet.js":57}],59:[function(require,module,exports){
+},{"../enums.js":43,"../util":74,"./all_packets.js":51,"./packet.js":57}],59:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -13809,40 +13839,40 @@ function PublicKey() {
 /**
  * Internal Parser for public keys as specified in {@link http://tools.ietf.org/html/rfc4880#section-5.5.2|RFC 4880 section 5.5.2 Public-Key Packet Formats}
  * called by read_tag&lt;num&gt;
- * @param {String} input Input string to read the packet from
+ * @param {Uint8Array} bytes Input array to read the packet from
  * @return {Object} This object with attributes set by the parser
  */
 PublicKey.prototype.read = function (bytes) {
   var pos = 0;
   // A one-octet version number (3 or 4).
-  this.version = bytes.charCodeAt(pos++);
+  this.version = bytes[pos++];
 
   if (this.version == 3 || this.version == 4) {
     // - A four-octet number denoting the time that the key was created.
-    this.created = util.readDate(bytes.substr(pos, 4));
+    this.created = util.readDate(bytes.subarray(pos, pos + 4));
     pos += 4;
 
     if (this.version == 3) {
       // - A two-octet number denoting the time in days that this key is
       //   valid.  If this number is zero, then it does not expire.
-      this.expirationTimeV3 = util.readNumber(bytes.substr(pos, 2));
+      this.expirationTimeV3 = util.readNumber(bytes.subarray(pos, pos + 2));
       pos += 2;
     }
 
     // - A one-octet number denoting the public-key algorithm of this key.
-    this.algorithm = enums.read(enums.publicKey, bytes.charCodeAt(pos++));
+    this.algorithm = enums.read(enums.publicKey, bytes[pos++]);
 
     var mpicount = crypto.getPublicMpiCount(this.algorithm);
     this.mpi = [];
 
-    var bmpi = bytes.substr(pos);
+    var bmpi = bytes.subarray(pos, bytes.length);
     var p = 0;
 
     for (var i = 0; i < mpicount && p < bmpi.length; i++) {
 
       this.mpi[i] = new type_mpi();
 
-      p += this.mpi[i].read(bmpi.substr(p));
+      p += this.mpi[i].read(bmpi.subarray(p, bmpi.length));
 
       if (p > bmpi.length) {
         throw new Error('Error reading MPI @:' + p);
@@ -13864,25 +13894,26 @@ PublicKey.prototype.readPublicKey = PublicKey.prototype.read;
 /**
  * Same as write_private_key, but has less information because of
  * public key.
- * @return {Object} {body: [string]OpenPGP packet body contents,
- * header: [string] OpenPGP packet header, string: [string] header+body}
+ * @return {Uint8Array} OpenPGP packet body contents,
  */
 PublicKey.prototype.write = function () {
+
+  var arr = [];
   // Version
-  var result = String.fromCharCode(this.version);
-  result += util.writeDate(this.created);
+  arr.push(new Uint8Array([this.version]));
+  arr.push(util.writeDate(this.created));
   if (this.version == 3) {
-    result += util.writeNumber(this.expirationTimeV3, 2);
+    arr.push(util.writeNumber(this.expirationTimeV3, 2));
   }
-  result += String.fromCharCode(enums.write(enums.publicKey, this.algorithm));
+  arr.push(new Uint8Array([enums.write(enums.publicKey, this.algorithm)]));
 
   var mpicount = crypto.getPublicMpiCount(this.algorithm);
 
   for (var i = 0; i < mpicount; i++) {
-    result += this.mpi[i].write();
+    arr.push(this.mpi[i].write());
   }
 
-  return result;
+  return util.concatUint8Array(arr);
 };
 
 /**
@@ -13897,9 +13928,7 @@ PublicKey.prototype.writePublicKey = PublicKey.prototype.write;
 PublicKey.prototype.writeOld = function () {
   var bytes = this.writePublicKey();
 
-  return String.fromCharCode(0x99) +
-    util.writeNumber(bytes.length, 2) +
-    bytes;
+  return util.concatUint8Array([new Uint8Array([0x99]), util.writeNumber(bytes.length, 2), bytes]);
 };
 
 /**
@@ -13912,9 +13941,10 @@ PublicKey.prototype.getKeyId = function () {
   }
   this.keyid = new type_keyid();
   if (this.version == 4) {
-    this.keyid.read(util.hex2bin(this.getFingerprint()).substr(12, 8));
+    this.keyid.read(util.str2Uint8Array(util.hex2bin(this.getFingerprint()).substr(12, 8)));
   } else if (this.version == 3) {
-    this.keyid.read(this.mpi[0].write().substr(-8));
+    var arr = this.mpi[0].write();
+    this.keyid.read(arr.subarray(arr.length - 8, arr.length));
   }
   return this.keyid;
 };
@@ -13930,7 +13960,7 @@ PublicKey.prototype.getFingerprint = function () {
   var toHash = '';
   if (this.version == 4) {
     toHash = this.writeOld();
-    this.fingerprint = crypto.hash.sha1(toHash);
+    this.fingerprint = crypto.hash.sha1(util.Uint8Array2str(toHash));
   } else if (this.version == 3) {
     var mpicount = crypto.getPublicMpiCount(this.algorithm);
     for (var i = 0; i < mpicount; i++) {
@@ -14030,7 +14060,7 @@ function PublicKeyEncryptedSessionKey() {
 /**
  * Parsing function for a publickey encrypted session key packet (tag 1).
  *
- * @param {String} input Payload of a tag 1 packet
+ * @param {Uint8Array} input Payload of a tag 1 packet
  * @param {Integer} position Position to start reading from the input string
  * @param {Integer} len Length of the packet or the remaining length of
  *            input at position
@@ -14038,9 +14068,9 @@ function PublicKeyEncryptedSessionKey() {
  */
 PublicKeyEncryptedSessionKey.prototype.read = function (bytes) {
 
-  this.version = bytes.charCodeAt(0);
-  this.publicKeyId.read(bytes.substr(1));
-  this.publicKeyAlgorithm = enums.read(enums.publicKey, bytes.charCodeAt(9));
+  this.version = bytes[0];
+  this.publicKeyId.read(bytes.subarray(1,bytes.length));
+  this.publicKeyAlgorithm = enums.read(enums.publicKey, bytes[9]);
 
   var i = 10;
 
@@ -14062,7 +14092,7 @@ PublicKeyEncryptedSessionKey.prototype.read = function (bytes) {
 
   for (var j = 0; j < integerCount; j++) {
     var mpi = new type_mpi();
-    i += mpi.read(bytes.substr(i));
+    i += mpi.read(bytes.subarray(i, bytes.length));
     this.encrypted.push(mpi);
   }
 };
@@ -14070,42 +14100,26 @@ PublicKeyEncryptedSessionKey.prototype.read = function (bytes) {
 /**
  * Create a string representation of a tag 1 packet
  *
- * @param {String} publicKeyId
- *             The public key id corresponding to publicMPIs key as string
- * @param {Array<module:type/mpi>} publicMPIs
- *            Multiprecision integer objects describing the public key
- * @param {module:enums.publicKey} pubalgo
- *            The corresponding public key algorithm // See {@link http://tools.ietf.org/html/rfc4880#section-9.1|RFC4880 9.1}
- * @param {module:enums.symmetric} symmalgo
- *            The symmetric cipher algorithm used to encrypt the data
- *            within an encrypteddatapacket or encryptedintegrity-
- *            protecteddatapacket
- *            following this packet //See {@link http://tools.ietf.org/html/rfc4880#section-9.2|RFC4880 9.2}
- * @param {String} sessionkey
- *            A string of randombytes representing the session key
- * @return {String} The string representation
+ * @return {Uint8Array} The Uint8Array representation
  */
 PublicKeyEncryptedSessionKey.prototype.write = function () {
 
-  var result = String.fromCharCode(this.version);
-  result += this.publicKeyId.write();
-  result += String.fromCharCode(
-    enums.write(enums.publicKey, this.publicKeyAlgorithm));
+  var arr = [new Uint8Array([this.version]), this.publicKeyId.write(), new Uint8Array([enums.write(enums.publicKey, this.publicKeyAlgorithm)])];
 
   for (var i = 0; i < this.encrypted.length; i++) {
-    result += this.encrypted[i].write();
+    arr.push(this.encrypted[i].write());
   }
 
-  return result;
+  return util.concatUint8Array(arr);
 };
 
 PublicKeyEncryptedSessionKey.prototype.encrypt = function (key) {
   var data = String.fromCharCode(
     enums.write(enums.symmetric, this.sessionKeyAlgorithm));
 
-  data += this.sessionKey;
+  data += util.Uint8Array2str(this.sessionKey);
   var checksum = util.calc_checksum(this.sessionKey);
-  data += util.writeNumber(checksum, 2);
+  data += util.Uint8Array2str(util.writeNumber(checksum, 2));
 
   var mpi = new type_mpi();
   mpi.fromBytes(crypto.pkcs1.eme.encode(
@@ -14132,11 +14146,11 @@ PublicKeyEncryptedSessionKey.prototype.decrypt = function (key) {
     key.mpi,
     this.encrypted).toBytes();
 
-  var checksum = util.readNumber(result.substr(result.length - 2));
+  var checksum = util.readNumber(util.str2Uint8Array(result.substr(result.length - 2)));
 
   var decoded = crypto.pkcs1.eme.decode(result);
 
-  key = decoded.substring(1, decoded.length - 2);
+  key = util.str2Uint8Array(decoded.substring(1, decoded.length - 2));
 
   if (checksum != util.calc_checksum(key)) {
     throw new Error('Checksum mismatch');
@@ -14269,7 +14283,7 @@ function get_hash_fn(hash) {
     return crypto.hash.sha1;
   else
     return function(c) {
-      return util.writeNumber(util.calc_checksum(c), 2);
+      return util.Uint8Array2str(util.writeNumber(util.calc_checksum(util.str2Uint8Array(c)), 2));
   };
 }
 
@@ -14279,10 +14293,10 @@ function parse_cleartext_mpi(hash_algorithm, cleartext, algorithm) {
   var hashlen = get_hash_len(hash_algorithm),
     hashfn = get_hash_fn(hash_algorithm);
 
-  var hashtext = cleartext.substr(cleartext.length - hashlen);
-  cleartext = cleartext.substr(0, cleartext.length - hashlen);
+  var hashtext = util.Uint8Array2str(cleartext.subarray(cleartext.length - hashlen, cleartext.length));
+  cleartext = cleartext.subarray(0, cleartext.length - hashlen);
 
-  var hash = hashfn(cleartext);
+  var hash = hashfn(util.Uint8Array2str(cleartext));
 
   if (hash != hashtext)
     return new Error("Hash mismatch.");
@@ -14294,24 +14308,25 @@ function parse_cleartext_mpi(hash_algorithm, cleartext, algorithm) {
 
   for (var i = 0; i < mpis && j < cleartext.length; i++) {
     mpi[i] = new type_mpi();
-    j += mpi[i].read(cleartext.substr(j));
+    j += mpi[i].read(cleartext.subarray(j, cleartext.length));
   }
 
   return mpi;
 }
 
 function write_cleartext_mpi(hash_algorithm, algorithm, mpi) {
-  var bytes = '';
+  var arr = [];
   var discard = crypto.getPublicMpiCount(algorithm);
 
   for (var i = discard; i < mpi.length; i++) {
-    bytes += mpi[i].write();
+    arr.push(mpi[i].write());
   }
 
+  var bytes = util.concatUint8Array(arr);
 
-  bytes += get_hash_fn(hash_algorithm)(bytes);
+  var hash = get_hash_fn(hash_algorithm)(util.Uint8Array2str(bytes));
 
-  return bytes;
+  return util.concatUint8Array([bytes, util.str2Uint8Array(hash)]);
 }
 
 
@@ -14325,23 +14340,22 @@ SecretKey.prototype.read = function (bytes) {
   // - A Public-Key or Public-Subkey packet, as described above.
   var len = this.readPublicKey(bytes);
 
-  bytes = bytes.substr(len);
+  bytes = bytes.subarray(len, bytes.length);
 
 
   // - One octet indicating string-to-key usage conventions.  Zero
   //   indicates that the secret-key data is not encrypted.  255 or 254
   //   indicates that a string-to-key specifier is being given.  Any
   //   other value is a symmetric-key encryption algorithm identifier.
-  var isEncrypted = bytes.charCodeAt(0);
+  var isEncrypted = bytes[0];
 
   if (isEncrypted) {
     this.encrypted = bytes;
   } else {
-
     // - Plain or encrypted multiprecision integers comprising the secret
     //   key data.  These algorithm-specific fields are as described
     //   below.
-    var parsedMPI = parse_cleartext_mpi('mod', bytes.substr(1), this.algorithm);
+    var parsedMPI = parse_cleartext_mpi('mod', bytes.subarray(1, bytes.length), this.algorithm);
     if (parsedMPI instanceof Error)
       throw parsedMPI;
     this.mpi = this.mpi.concat(parsedMPI);
@@ -14354,17 +14368,16 @@ SecretKey.prototype.read = function (bytes) {
   * @return {String} A string of bytes containing the secret key OpenPGP packet
   */
 SecretKey.prototype.write = function () {
-  var bytes = this.writePublicKey();
+  var arr = [this.writePublicKey()];
 
   if (!this.encrypted) {
-    bytes += String.fromCharCode(0);
-
-    bytes += write_cleartext_mpi('mod', this.algorithm, this.mpi);
+    arr.push(new Uint8Array([0]));
+    arr.push(write_cleartext_mpi('mod', this.algorithm, this.mpi));
   } else {
-    bytes += this.encrypted;
+    arr.push(this.encrypted);
   }
 
-  return bytes;
+  return util.concatUint8Array(arr);
 };
 
 
@@ -14391,13 +14404,12 @@ SecretKey.prototype.encrypt = function (passphrase) {
     blockLen = crypto.cipher[symmetric].blockSize,
     iv = crypto.random.getRandomBytes(blockLen);
 
-  this.encrypted = '';
-  this.encrypted += String.fromCharCode(254);
-  this.encrypted += String.fromCharCode(enums.write(enums.symmetric, symmetric));
-  this.encrypted += s2k.write();
-  this.encrypted += iv;
+  var arr = [ new Uint8Array([254, enums.write(enums.symmetric, symmetric)]) ];
+  arr.push(s2k.write());
+  arr.push(iv);
+  arr.push(crypto.cfb.normalEncrypt(symmetric, key, cleartext, iv));
 
-  this.encrypted += crypto.cfb.normalEncrypt(symmetric, key, cleartext, iv);
+  this.encrypted = util.concatUint8Array(arr);
 };
 
 function produceEncryptionKey(s2k, passphrase, algorithm) {
@@ -14423,38 +14435,48 @@ SecretKey.prototype.decrypt = function (passphrase) {
     symmetric,
     key;
 
-  var s2k_usage = this.encrypted.charCodeAt(i++);
+  if(!Uint8Array.prototype.isPrototypeOf(this.encrypted)) {
+    if(Uint8Array.prototype.isPrototypeOf(this.encrypted.message)) {
+      throw new Error('this.encrypted.message is a typed array!');
+    }
+    if(this.encrypted === null) {
+      throw new Error('this.encrypted is null!');
+    }
+    throw new Error(Object.prototype.toString.call(this.encrypted));
+  }
+
+  var s2k_usage = this.encrypted[i++];
 
   // - [Optional] If string-to-key usage octet was 255 or 254, a one-
   //   octet symmetric encryption algorithm.
   if (s2k_usage == 255 || s2k_usage == 254) {
-    symmetric = this.encrypted.charCodeAt(i++);
+    symmetric = this.encrypted[i++];
     symmetric = enums.read(enums.symmetric, symmetric);
 
     // - [Optional] If string-to-key usage octet was 255 or 254, a
     //   string-to-key specifier.  The length of the string-to-key
     //   specifier is implied by its type, as described above.
     var s2k = new type_s2k();
-    i += s2k.read(this.encrypted.substr(i));
+    i += s2k.read(this.encrypted.subarray(i, this.encrypted.length));
 
     key = produceEncryptionKey(s2k, passphrase, symmetric);
   } else {
     symmetric = s2k_usage;
     symmetric = enums.read(enums.symmetric, symmetric);
-    key = crypto.hash.md5(passphrase);
+    key = util.str2Uint8Array(crypto.hash.md5(passphrase));
   }
 
 
   // - [Optional] If secret data is encrypted (string-to-key usage octet
   //   not zero), an Initial Vector (IV) of the same length as the
   //   cipher's block size.
-  var iv = this.encrypted.substr(i,
-    crypto.cipher[symmetric].blockSize);
+  var iv = this.encrypted.subarray(i,
+    i + crypto.cipher[symmetric].blockSize);
 
   i += iv.length;
 
   var cleartext,
-    ciphertext = this.encrypted.substr(i);
+    ciphertext = this.encrypted.subarray(i, this.encrypted.length);
 
   cleartext = crypto.cfb.normalDecrypt(symmetric, key, ciphertext, iv);
 
@@ -14633,47 +14655,46 @@ function Signature() {
  */
 Signature.prototype.read = function (bytes) {
   var i = 0;
-
-  this.version = bytes.charCodeAt(i++);
+  this.version = bytes[i++];
   // switch on version (3 and 4)
   switch (this.version) {
     case 3:
       // One-octet length of following hashed material. MUST be 5.
-      if (bytes.charCodeAt(i++) != 5)
+      if (bytes[i++] != 5)
         util.print_debug("packet/signature.js\n" +
           'invalid One-octet length of following hashed material.' +
           'MUST be 5. @:' + (i - 1));
 
       var sigpos = i;
       // One-octet signature type.
-      this.signatureType = bytes.charCodeAt(i++);
+      this.signatureType = bytes[i++];
 
       // Four-octet creation time.
-      this.created = util.readDate(bytes.substr(i, 4));
+      this.created = util.readDate(bytes.subarray(i, i + 4));
       i += 4;
 
       // storing data appended to data which gets verified
-      this.signatureData = bytes.substring(sigpos, i);
+      this.signatureData = bytes.subarray(sigpos, i);
 
       // Eight-octet Key ID of signer.
-      this.issuerKeyId.read(bytes.substring(i, i + 8));
+      this.issuerKeyId.read(bytes.subarray(i, i + 8));
       i += 8;
 
       // One-octet public-key algorithm.
-      this.publicKeyAlgorithm = bytes.charCodeAt(i++);
+      this.publicKeyAlgorithm = bytes[i++];
 
       // One-octet hash algorithm.
-      this.hashAlgorithm = bytes.charCodeAt(i++);
+      this.hashAlgorithm = bytes[i++];
       break;
     case 4:
-      this.signatureType = bytes.charCodeAt(i++);
-      this.publicKeyAlgorithm = bytes.charCodeAt(i++);
-      this.hashAlgorithm = bytes.charCodeAt(i++);
+      this.signatureType = bytes[i++];
+      this.publicKeyAlgorithm = bytes[i++];
+      this.hashAlgorithm = bytes[i++];
 
       function subpackets(bytes) {
         // Two-octet scalar octet count for following subpacket data.
         var subpacket_length = util.readNumber(
-          bytes.substr(0, 2));
+          bytes.subarray(0, 2));
 
         var i = 2;
 
@@ -14681,10 +14702,10 @@ Signature.prototype.read = function (bytes) {
         var subpacked_read = 0;
         while (i < 2 + subpacket_length) {
 
-          var len = packet.readSimpleLength(bytes.substr(i));
+          var len = packet.readSimpleLength(bytes.subarray(i, bytes.length));
           i += len.offset;
 
-          this.read_sub_packet(bytes.substr(i, len.len));
+          this.read_sub_packet(bytes.subarray(i, i + len.len));
 
           i += len.len;
         }
@@ -14693,7 +14714,7 @@ Signature.prototype.read = function (bytes) {
       }
 
       // hashed subpackets
-      i += subpackets.call(this, bytes.substr(i), true);
+      i += subpackets.call(this, bytes.subarray(i, bytes.length), true);
 
       // A V4 signature hashes the packet body
       // starting from its first field, the version number, through the end
@@ -14701,12 +14722,12 @@ Signature.prototype.read = function (bytes) {
       // signature version, the signature type, the public-key algorithm, the
       // hash algorithm, the hashed subpacket length, and the hashed
       // subpacket body.
-      this.signatureData = bytes.substr(0, i);
+      this.signatureData = bytes.subarray(0, i);
       var sigDataLength = i;
 
       // unhashed subpackets
-      i += subpackets.call(this, bytes.substr(i), false);
-      this.unhashedSubpackets = bytes.substr(sigDataLength, i - sigDataLength);
+      i += subpackets.call(this, bytes.subarray(i, bytes.length), false);
+      this.unhashedSubpackets = bytes.subarray(sigDataLength, i);
 
       break;
     default:
@@ -14714,30 +14735,29 @@ Signature.prototype.read = function (bytes) {
   }
 
   // Two-octet field holding left 16 bits of signed hash value.
-  this.signedHashValue = bytes.substr(i, 2);
+  this.signedHashValue = bytes.subarray(i, i + 2);
   i += 2;
 
-  this.signature = bytes.substr(i);
+  this.signature = bytes.subarray(i, bytes.length);
 };
 
 Signature.prototype.write = function () {
-  var result = '';
+  var arr = [];
   switch (this.version) {
     case 3:
-      result += String.fromCharCode(3); // version
-      result += String.fromCharCode(5); // One-octet length of following hashed material.  MUST be 5
-      result += this.signatureData;
-      result += this.issuerKeyId.write();
-      result += String.fromCharCode(this.publicKeyAlgorithm);
-      result += String.fromCharCode(this.hashAlgorithm);
+      arr.push(new Uint8Array([3, 5])); // version, One-octet length of following hashed material.  MUST be 5
+      arr.push(this.signatureData);
+      arr.push(this.issuerKeyId.write());
+      arr.push(new Uint8Array([this.publicKeyAlgorithm, this.hashAlgorithm]));
       break;
     case 4:
-      result += this.signatureData;
-      result += this.unhashedSubpackets ? this.unhashedSubpackets : util.writeNumber(0, 2);
+      arr.push(this.signatureData);
+      arr.push(this.unhashedSubpackets ? this.unhashedSubpackets : util.writeNumber(0, 2));
       break;
   }
-  result += this.signedHashValue + this.signature;
-  return result;
+  arr.push(this.signedHashValue);
+  arr.push(this.signature);
+  return util.concatUint8Array(arr);
 };
 
 /**
@@ -14750,29 +14770,25 @@ Signature.prototype.sign = function (key, data) {
     publicKeyAlgorithm = enums.write(enums.publicKey, this.publicKeyAlgorithm),
     hashAlgorithm = enums.write(enums.hash, this.hashAlgorithm);
 
-  var result = String.fromCharCode(4);
-  result += String.fromCharCode(signatureType);
-  result += String.fromCharCode(publicKeyAlgorithm);
-  result += String.fromCharCode(hashAlgorithm);
+  var arr = [new Uint8Array([4, signatureType, publicKeyAlgorithm, hashAlgorithm])];
 
   this.issuerKeyId = key.getKeyId();
 
   // Add hashed subpackets
-  result += this.write_all_sub_packets();
+  arr.push(this.write_all_sub_packets());
 
-  this.signatureData = result;
+  this.signatureData = util.concatUint8Array(arr);
 
   var trailer = this.calculateTrailer();
 
-  var toHash = this.toSign(signatureType, data) +
-    this.signatureData + trailer;
+  var toHash = util.Uint8Array2str(util.concatUint8Array([this.toSign(signatureType, data), this.signatureData, trailer]));
 
   var hash = crypto.hash.digest(hashAlgorithm, toHash);
 
-  this.signedHashValue = hash.substr(0, 2);
+  this.signedHashValue = util.str2Uint8Array(hash.substr(0, 2));
 
-  this.signature = crypto.signature.sign(hashAlgorithm,
-    publicKeyAlgorithm, key.mpi, toHash);
+  this.signature = util.str2Uint8Array(crypto.signature.sign(hashAlgorithm,
+    publicKeyAlgorithm, key.mpi, util.str2Uint8Array(toHash)));
 };
 
 /**
@@ -14781,108 +14797,108 @@ Signature.prototype.sign = function (key, data) {
  */
 Signature.prototype.write_all_sub_packets = function () {
   var sub = enums.signatureSubpacket;
-  var result = '';
-  var bytes = '';
+  var arr = [];
+  var bytes;
   if (this.created !== null) {
-    result += write_sub_packet(sub.signature_creation_time, util.writeDate(this.created));
+    arr.push(write_sub_packet(sub.signature_creation_time, util.writeDate(this.created)));
   }
   if (this.signatureExpirationTime !== null) {
-    result += write_sub_packet(sub.signature_expiration_time, util.writeNumber(this.signatureExpirationTime, 4));
+    arr.push(write_sub_packet(sub.signature_expiration_time, util.writeNumber(this.signatureExpirationTime, 4)));
   }
   if (this.exportable !== null) {
-    result += write_sub_packet(sub.exportable_certification, String.fromCharCode(this.exportable ? 1 : 0));
+    arr.push(write_sub_packet(sub.exportable_certification, new Uint8Array([this.exportable ? 1 : 0])));
   }
   if (this.trustLevel !== null) {
-    bytes = String.fromCharCode(this.trustLevel) + String.fromCharCode(this.trustAmount);
-    result += write_sub_packet(sub.trust_signature, bytes);
+    bytes = new Uint8Array([this.trustLevel,this.trustAmount]);;
+    arr.push(write_sub_packet(sub.trust_signature, bytes));
   }
   if (this.regularExpression !== null) {
-    result += write_sub_packet(sub.regular_expression, this.regularExpression);
+    arr.push(write_sub_packet(sub.regular_expression, this.regularExpression));
   }
   if (this.revocable !== null) {
-    result += write_sub_packet(sub.revocable, String.fromCharCode(this.revocable ? 1 : 0));
+    arr.push(write_sub_packet(sub.revocable, new Uint8Array([this.revocable ? 1 : 0])));
   }
   if (this.keyExpirationTime !== null) {
-    result += write_sub_packet(sub.key_expiration_time, util.writeNumber(this.keyExpirationTime, 4));
+    arr.push(write_sub_packet(sub.key_expiration_time, util.writeNumber(this.keyExpirationTime, 4)));
   }
   if (this.preferredSymmetricAlgorithms !== null) {
-    bytes = util.bin2str(this.preferredSymmetricAlgorithms);
-    result += write_sub_packet(sub.preferred_symmetric_algorithms, bytes);
+    bytes = util.str2Uint8Array(util.bin2str(this.preferredSymmetricAlgorithms));
+    arr.push(write_sub_packet(sub.preferred_symmetric_algorithms, bytes));
   }
   if (this.revocationKeyClass !== null) {
-    bytes = String.fromCharCode(this.revocationKeyClass);
-    bytes += String.fromCharCode(this.revocationKeyAlgorithm);
-    bytes += this.revocationKeyFingerprint;
-    result += write_sub_packet(sub.revocation_key, bytes);
+
+    bytes = new Uint8Array([this.revocationKeyClass, this.revocationKeyAlgorithm]);
+    bytes = util.concatUint8Array([bytes, this.revocationKeyFingerprint]);
+    arr.push(write_sub_packet(sub.revocation_key, bytes));
   }
   if (!this.issuerKeyId.isNull()) {
-    result += write_sub_packet(sub.issuer, this.issuerKeyId.write());
+    arr.push(write_sub_packet(sub.issuer, this.issuerKeyId.write()));
   }
   if (this.notation !== null) {
     for (var name in this.notation) {
       if (this.notation.hasOwnProperty(name)) {
         var value = this.notation[name];
-        bytes = String.fromCharCode(0x80);
-        bytes += String.fromCharCode(0);
-        bytes += String.fromCharCode(0);
-        bytes += String.fromCharCode(0);
+        bytes = [new Uint8Array([0x80, 0, 0, 0])];
         // 2 octets of name length
-        bytes += util.writeNumber(name.length, 2);
+        bytes.push(util.writeNumber(name.length, 2));
         // 2 octets of value length
-        bytes += util.writeNumber(value.length, 2);
-        bytes += name + value;
-        result += write_sub_packet(sub.notation_data, bytes);
+        bytes.push(util.writeNumber(value.length, 2));
+        bytes.push(util.str2Uint8Array(name + value));
+        bytes = concatUint8Array(bytes);
+        arr.push(write_sub_packet(sub.notation_data, bytes));
       }
     }
   }
   if (this.preferredHashAlgorithms !== null) {
-    bytes = util.bin2str(this.preferredHashAlgorithms);
-    result += write_sub_packet(sub.preferred_hash_algorithms, bytes);
+    bytes = util.str2Uint8Array(util.bin2str(this.preferredHashAlgorithms));
+    arr.push(write_sub_packet(sub.preferred_hash_algorithms, bytes));
   }
   if (this.preferredCompressionAlgorithms !== null) {
-    bytes = util.bin2str(this.preferredCompressionAlgorithms);
-    result += write_sub_packet(sub.preferred_compression_algorithms, bytes);
+    bytes = util.str2Uint8Array(util.bin2str(this.preferredCompressionAlgorithms));
+    arr.push(write_sub_packet(sub.preferred_compression_algorithms, bytes));
   }
   if (this.keyServerPreferences !== null) {
-    bytes = util.bin2str(this.keyServerPreferences);
-    result += write_sub_packet(sub.key_server_preferences, bytes);
+    bytes = util.str2Uint8Array(util.bin2str(this.keyServerPreferences));
+    arr.push(write_sub_packet(sub.key_server_preferences, bytes));
   }
   if (this.preferredKeyServer !== null) {
-    result += write_sub_packet(sub.preferred_key_server, this.preferredKeyServer);
+    arr.push(write_sub_packet(sub.preferred_key_server, util.str2Uint8Array(this.preferredKeyServer)));
   }
   if (this.isPrimaryUserID !== null) {
-    result += write_sub_packet(sub.primary_user_id, String.fromCharCode(this.isPrimaryUserID ? 1 : 0));
+    arr.push(write_sub_packet(sub.primary_user_id, new Uint8Array([this.isPrimaryUserID ? 1 : 0])));
   }
   if (this.policyURI !== null) {
-    result += write_sub_packet(sub.policy_uri, this.policyURI);
+    arr.push(write_sub_packet(sub.policy_uri, util.str2Uint8Array(this.policyURI)));
   }
   if (this.keyFlags !== null) {
-    bytes = util.bin2str(this.keyFlags);
-    result += write_sub_packet(sub.key_flags, bytes);
+    bytes = util.str2Uint8Array(util.bin2str(this.keyFlags));
+    arr.push(write_sub_packet(sub.key_flags, bytes));
   }
   if (this.signersUserId !== null) {
-    result += write_sub_packet(sub.signers_user_id, this.signersUserId);
+    arr.push(write_sub_packet(sub.signers_user_id, util.str2Uint8Array(this.signersUserId)));
   }
   if (this.reasonForRevocationFlag !== null) {
-    bytes = String.fromCharCode(this.reasonForRevocationFlag);
-    bytes += this.reasonForRevocationString;
-    result += write_sub_packet(sub.reason_for_revocation, bytes);
+    bytes = util.str2Uint8Array(String.fromCharCode(this.reasonForRevocationFlag) + this.reasonForRevocationString);
+    arr.push(write_sub_packet(sub.reason_for_revocation, bytes));
   }
   if (this.features !== null) {
-    bytes = util.bin2str(this.features);
-    result += write_sub_packet(sub.features, bytes);
+    bytes = util.str2Uint8Array(util.bin2str(this.features));
+    arr.push(write_sub_packet(sub.features, bytes));
   }
   if (this.signatureTargetPublicKeyAlgorithm !== null) {
-    bytes = String.fromCharCode(this.signatureTargetPublicKeyAlgorithm);
-    bytes += String.fromCharCode(this.signatureTargetHashAlgorithm);
-    bytes += this.signatureTargetHash;
-    result += write_sub_packet(sub.signature_target, bytes);
+    bytes = [new Uint8Array([this.signatureTargetPublicKeyAlgorithm, this.signatureTargetHashAlgorithm])];
+    bytes.push(util.str2Uint8Array(this.signatureTargetHash));
+    bytes = util.concatUint8Array(bytes);
+    arr.push(write_sub_packet(sub.signature_target, bytes));
   }
   if (this.embeddedSignature !== null) {
-    result += write_sub_packet(sub.embedded_signature, this.embeddedSignature.write());
+    arr.push(write_sub_packet(sub.embedded_signature, this.embeddedSignature.write()));
   }
-  result = util.writeNumber(result.length, 2) + result;
-  return result;
+
+  var result = util.concatUint8Array(arr);
+  var length = util.writeNumber(result.length, 2);
+  
+  return util.concatUint8Array([length, result]);
 };
 
 /**
@@ -14893,11 +14909,11 @@ Signature.prototype.write_all_sub_packets = function () {
  * @return {String} a string-representation of a sub signature packet (See {@link http://tools.ietf.org/html/rfc4880#section-5.2.3.1|RFC 4880 5.2.3.1})
  */
 function write_sub_packet(type, data) {
-  var result = "";
-  result += packet.writeSimpleLength(data.length + 1);
-  result += String.fromCharCode(type);
-  result += data;
-  return result;
+  var arr = [];
+  arr.push(packet.writeSimpleLength(data.length + 1));
+  arr.push(new Uint8Array([type]));
+  arr.push(data);
+  return util.concatUint8Array(arr);
 }
 
 // V4 signature sub packets
@@ -14909,23 +14925,23 @@ Signature.prototype.read_sub_packet = function (bytes) {
     this[prop] = [];
 
     for (var i = 0; i < bytes.length; i++) {
-      this[prop].push(bytes.charCodeAt(i));
+      this[prop].push(bytes[i]);
     }
   }
 
   // The leftwost bit denotes a "critical" packet, but we ignore it.
-  var type = bytes.charCodeAt(mypos++) & 0x7F;
+  var type = bytes[mypos++] & 0x7F;
   var seconds;
 
   // subpacket type
   switch (type) {
     case 2:
       // Signature Creation Time
-      this.created = util.readDate(bytes.substr(mypos));
+      this.created = util.readDate(bytes.subarray(mypos, bytes.length));
       break;
     case 3:
       // Signature Expiration Time in seconds
-      seconds = util.readNumber(bytes.substr(mypos));
+      seconds = util.readNumber(bytes.subarray(mypos, bytes.length));
 
       this.signatureNeverExpires = seconds === 0;
       this.signatureExpirationTime = seconds;
@@ -14933,24 +14949,24 @@ Signature.prototype.read_sub_packet = function (bytes) {
       break;
     case 4:
       // Exportable Certification
-      this.exportable = bytes.charCodeAt(mypos++) == 1;
+      this.exportable = bytes[mypos++] == 1;
       break;
     case 5:
       // Trust Signature
-      this.trustLevel = bytes.charCodeAt(mypos++);
-      this.trustAmount = bytes.charCodeAt(mypos++);
+      this.trustLevel = bytes[mypos++];
+      this.trustAmount = bytes[mypos++];
       break;
     case 6:
       // Regular Expression
-      this.regularExpression = bytes.substr(mypos);
+      this.regularExpression = bytes[mypos];
       break;
     case 7:
       // Revocable
-      this.revocable = bytes.charCodeAt(mypos++) == 1;
+      this.revocable = bytes[mypos++] == 1;
       break;
     case 9:
       // Key Expiration Time in seconds
-      seconds = util.readNumber(bytes.substr(mypos));
+      seconds = util.readNumber(bytes.subarray(mypos, bytes.length));
 
       this.keyExpirationTime = seconds;
       this.keyNeverExpires = seconds === 0;
@@ -14958,59 +14974,59 @@ Signature.prototype.read_sub_packet = function (bytes) {
       break;
     case 11:
       // Preferred Symmetric Algorithms
-      read_array.call(this, 'preferredSymmetricAlgorithms', bytes.substr(mypos));
+      read_array.call(this, 'preferredSymmetricAlgorithms', bytes.subarray(mypos, bytes.length));
       break;
     case 12:
       // Revocation Key
       // (1 octet of class, 1 octet of public-key algorithm ID, 20
       // octets of
       // fingerprint)
-      this.revocationKeyClass = bytes.charCodeAt(mypos++);
-      this.revocationKeyAlgorithm = bytes.charCodeAt(mypos++);
-      this.revocationKeyFingerprint = bytes.substr(mypos, 20);
+      this.revocationKeyClass = bytes[mypos++];
+      this.revocationKeyAlgorithm = bytes[mypos++];
+      this.revocationKeyFingerprint = bytes.subarray(mypos, 20);
       break;
 
     case 16:
       // Issuer
-      this.issuerKeyId.read(bytes.substr(mypos));
+      this.issuerKeyId.read(bytes.subarray(mypos, bytes.length));
       break;
 
     case 20:
       // Notation Data
       // We don't know how to handle anything but a text flagged data.
-      if (bytes.charCodeAt(mypos) == 0x80) {
+      if (bytes[mypos] == 0x80) {
 
         // We extract key/value tuple from the byte stream.
         mypos += 4;
-        var m = util.readNumber(bytes.substr(mypos, 2));
+        var m = util.readNumber(bytes.subarray(mypos, mypos + 2));
         mypos += 2;
-        var n = util.readNumber(bytes.substr(mypos, 2));
+        var n = util.readNumber(bytes.subarray(mypos, mypos + 2));
         mypos += 2;
 
-        var name = bytes.substr(mypos, m),
-          value = bytes.substr(mypos + m, n);
+        var name = util.Uint8Array2str(bytes.subarray(mypos, mypos + m)),
+          value = util.Uint8Array2str(bytes.subarray(mypos + m, mypos + m + n));
 
         this.notation = this.notation || {};
         this.notation[name] = value;
       } else {
-    	  util.print_debug("Unsupported notation flag "+bytes.charCodeAt(mypos));
+    	  util.print_debug("Unsupported notation flag "+bytes[mypos]);
       	}
       break;
     case 21:
       // Preferred Hash Algorithms
-      read_array.call(this, 'preferredHashAlgorithms', bytes.substr(mypos));
+      read_array.call(this, 'preferredHashAlgorithms', bytes.subarray(mypos, bytes.length));
       break;
     case 22:
       // Preferred Compression Algorithms
-      read_array.call(this, 'preferredCompressionAlgorithms', bytes.substr(mypos));
+      read_array.call(this, 'preferredCompressionAlgorithms', bytes.subarray(mypos, bytes.length));
       break;
     case 23:
       // Key Server Preferences
-      read_array.call(this, 'keyServerPreferencess', bytes.substr(mypos));
+      read_array.call(this, 'keyServerPreferencess', bytes.subarray(mypos, bytes.length));
       break;
     case 24:
       // Preferred Key Server
-      this.preferredKeyServer = bytes.substr(mypos);
+      this.preferredKeyServer = util.Uint8Array2str(bytes.subarray(mypos, bytes.length));
       break;
     case 25:
       // Primary User ID
@@ -15018,39 +15034,39 @@ Signature.prototype.read_sub_packet = function (bytes) {
       break;
     case 26:
       // Policy URI
-      this.policyURI = bytes.substr(mypos);
+      this.policyURI = util.Uint8Array2str(bytes.subarray(mypos, bytes.length));
       break;
     case 27:
       // Key Flags
-      read_array.call(this, 'keyFlags', bytes.substr(mypos));
+      read_array.call(this, 'keyFlags', bytes.subarray(mypos, bytes.length));
       break;
     case 28:
       // Signer's User ID
-      this.signersUserId += bytes.substr(mypos);
+      this.signersUserId += util.Uint8Array2str(bytes.subarray(mypos, bytes.length));
       break;
     case 29:
       // Reason for Revocation
-      this.reasonForRevocationFlag = bytes.charCodeAt(mypos++);
-      this.reasonForRevocationString = bytes.substr(mypos);
+      this.reasonForRevocationFlag = bytes[mypos++];
+      this.reasonForRevocationString = util.Uint8Array2str(bytes.subarray(mypos, bytes.length));
       break;
     case 30:
       // Features
-      read_array.call(this, 'features', bytes.substr(mypos));
+      read_array.call(this, 'features', bytes.subarray(mypos, bytes.length));
       break;
     case 31:
       // Signature Target
       // (1 octet public-key algorithm, 1 octet hash algorithm, N octets hash)
-      this.signatureTargetPublicKeyAlgorithm = bytes.charCodeAt(mypos++);
-      this.signatureTargetHashAlgorithm = bytes.charCodeAt(mypos++);
+      this.signatureTargetPublicKeyAlgorithm = bytes[mypos++];
+      this.signatureTargetHashAlgorithm = bytes[mypos++];
 
       var len = crypto.getHashByteLength(this.signatureTargetHashAlgorithm);
 
-      this.signatureTargetHash = bytes.substr(mypos, len);
+      this.signatureTargetHash = util.Uint8Array2str(bytes.subarray(mypos, mypos + len));
       break;
     case 32:
       // Embedded Signature
       this.embeddedSignature = new Signature();
-      this.embeddedSignature.read(bytes.substr(mypos));
+      this.embeddedSignature.read(bytes.subarray(mypos, bytes.length));
       break;
     default:
     	util.print_debug("Unknown signature subpacket type " + type + " @:" + mypos);
@@ -15067,7 +15083,7 @@ Signature.prototype.toSign = function (type, data) {
       return data.getBytes();
 
     case t.standalone:
-      return '';
+      return new Uint8Array(0);
 
     case t.cert_generic:
     case t.cert_persona:
@@ -15088,33 +15104,32 @@ Signature.prototype.toSign = function (type, data) {
       var bytes = packet.write();
 
       if (this.version == 4) {
-        return this.toSign(t.key, data) +
-        String.fromCharCode(tag) +
-        util.writeNumber(bytes.length, 4) +
-        bytes;
+        return util.concatUint8Array([this.toSign(t.key, data),
+          new Uint8Array([tag]),
+          util.writeNumber(bytes.length, 4),
+          bytes]);
       } else if (this.version == 3) {
-        return this.toSign(t.key, data) +
-        bytes;
+        return util.concatUint8Array([this.toSign(t.key, data),
+          bytes]);
       }
       break;
 
     case t.subkey_binding:
     case t.subkey_revocation:
     case t.key_binding:
-      return this.toSign(t.key, data) + this.toSign(t.key, {
+      return util.concatUint8Array([this.toSign(t.key, data),this.toSign(t.key, {
         key: data.bind
-      });
+      })]);
 
     case t.key:
       if (data.key === undefined)
         throw new Error('Key packet is required for this signature.');
-
       return data.key.writeOld();
 
     case t.key_revocation:
       return this.toSign(t.key, data);
     case t.timestamp:
-      return '';
+      return new Uint8Array(0);
     case t.third_party:
       throw new Error('Not implemented');
     default:
@@ -15125,13 +15140,10 @@ Signature.prototype.toSign = function (type, data) {
 
 Signature.prototype.calculateTrailer = function () {
   // calculating the trailer
-  var trailer = '';
   // V3 signatures don't have a trailer
-  if (this.version == 3) return trailer;
-  trailer += String.fromCharCode(4); // Version
-  trailer += String.fromCharCode(0xFF);
-  trailer += util.writeNumber(this.signatureData.length, 4);
-  return trailer;
+  if (this.version == 3) return new Uint8Array(0);
+  var first = new Uint8Array([4, 0xFF]); //Version, ?
+  return util.concatUint8Array([first, util.writeNumber(this.signatureData.length, 4)]);
 };
 
 
@@ -15166,12 +15178,12 @@ Signature.prototype.verify = function (key, data) {
     i = 0;
   for (var j = 0; j < mpicount; j++) {
     mpi[j] = new type_mpi();
-    i += mpi[j].read(this.signature.substr(i));
+    i += mpi[j].read(this.signature.subarray(i, this.signature.length));
   }
 
   this.verified = crypto.signature.verify(publicKeyAlgorithm,
     hashAlgorithm, mpi, key.mpi,
-    bytes + this.signatureData + trailer);
+    util.concatUint8Array([bytes, this.signatureData, trailer]));
 
   return this.verified;
 };
@@ -15253,7 +15265,7 @@ function SymEncryptedIntegrityProtected() {
 
 SymEncryptedIntegrityProtected.prototype.read = function (bytes) {
   // - A one-octet version number. The only currently defined value is 1.
-  var version = bytes.charCodeAt(0);
+  var version = bytes[0];
 
   if (version != 1) {
     throw new Error('Invalid packet version.');
@@ -15262,35 +15274,34 @@ SymEncryptedIntegrityProtected.prototype.read = function (bytes) {
   // - Encrypted data, the output of the selected symmetric-key cipher
   //   operating in Cipher Feedback mode with shift amount equal to the
   //   block size of the cipher (CFB-n where n is the block size).
-  this.encrypted = bytes.substr(1);
+  this.encrypted = bytes.subarray(1, bytes.length);
 };
 
 SymEncryptedIntegrityProtected.prototype.write = function () {
 
   // 1 = Version
-  return String.fromCharCode(1) + this.encrypted;
+  return util.concatUint8Array([new Uint8Array([1]), this.encrypted]);
 };
 
 SymEncryptedIntegrityProtected.prototype.encrypt = function (sessionKeyAlgorithm, key) {
   var bytes = this.packets.write();
 
   var prefixrandom = crypto.getPrefixRandom(sessionKeyAlgorithm);
-  var prefix = prefixrandom + prefixrandom.charAt(prefixrandom.length - 2) + prefixrandom.charAt(prefixrandom.length -
-    1);
-
-  var tohash = bytes;
-
+  var repeat = new Uint8Array([prefixrandom[prefixrandom.length - 2], prefixrandom[prefixrandom.length - 1]]);
+  var prefix = util.concatUint8Array([prefixrandom, repeat]);
 
   // Modification detection code packet.
-  tohash += String.fromCharCode(0xD3);
-  tohash += String.fromCharCode(0x14);
+  var mdc = new Uint8Array([0xD3, 0x14]);
 
+  // This could probably be cleaned up to use less memory
+  var tohash = util.concatUint8Array([bytes, mdc]);
 
-  tohash += crypto.hash.sha1(prefix + tohash);
+  var hash = util.str2Uint8Array(crypto.hash.sha1(util.Uint8Array2str(util.concatUint8Array([prefix, tohash]))));
 
+  tohash = util.concatUint8Array([tohash, hash]);
 
   this.encrypted = crypto.cfb.encrypt(prefixrandom,
-    sessionKeyAlgorithm, tohash, key, false).substring(0,
+    sessionKeyAlgorithm, tohash, key, false).subarray(0,
     prefix.length + tohash.length);
 };
 
@@ -15307,19 +15318,17 @@ SymEncryptedIntegrityProtected.prototype.decrypt = function (sessionKeyAlgorithm
   var decrypted = crypto.cfb.decrypt(
     sessionKeyAlgorithm, key, this.encrypted, false);
 
-
   // there must be a modification detection code packet as the
   // last packet and everything gets hashed except the hash itself
-  this.hash = crypto.hash.sha1(
-    crypto.cfb.mdc(sessionKeyAlgorithm, key, this.encrypted) + decrypted.substring(0, decrypted.length - 20));
+  this.hash = crypto.hash.sha1(util.Uint8Array2str(util.concatUint8Array([crypto.cfb.mdc(sessionKeyAlgorithm, key, this.encrypted), 
+    decrypted.subarray(0, decrypted.length - 20)])));
 
-
-  var mdc = decrypted.substr(decrypted.length - 20, 20);
+  var mdc = util.Uint8Array2str(decrypted.subarray(decrypted.length - 20, decrypted.length));
 
   if (this.hash != mdc) {
     throw new Error('Modification detected.');
   } else
-    this.packets.read(decrypted.substr(0, decrypted.length - 22));
+    this.packets.read(decrypted.subarray(0, decrypted.length - 22));
 };
 
 },{"../crypto":32,"../enums.js":43,"../util.js":74}],66:[function(require,module,exports){
@@ -15354,13 +15363,15 @@ SymEncryptedIntegrityProtected.prototype.decrypt = function (sessionKeyAlgorithm
  * The recipient of the message finds a session key that is encrypted to their
  * public key, decrypts the session key, and then uses the session key to
  * decrypt the message.
+ * @requires util
  * @requires crypto
  * @requires enums
  * @requires type/s2k
  * @module packet/sym_encrypted_session_key
  */
 
-var type_s2k = require('../type/s2k.js'),
+var util = require('../util.js'),
+  type_s2k = require('../type/s2k.js'),
   enums = require('../enums.js'),
   crypto = require('../crypto');
 
@@ -15382,7 +15393,7 @@ function SymEncryptedSessionKey() {
 /**
  * Parsing function for a symmetric encrypted session key packet (tag 3).
  *
- * @param {String} input Payload of a tag 1 packet
+ * @param {Uint8Array} input Payload of a tag 1 packet
  * @param {Integer} position Position to start reading from the input string
  * @param {Integer} len
  *            Length of the packet or the remaining length of
@@ -15391,20 +15402,20 @@ function SymEncryptedSessionKey() {
  */
 SymEncryptedSessionKey.prototype.read = function(bytes) {
   // A one-octet version number. The only currently defined version is 4.
-  this.version = bytes.charCodeAt(0);
+  this.version = bytes[0];
 
   // A one-octet number describing the symmetric algorithm used.
-  var algo = enums.read(enums.symmetric, bytes.charCodeAt(1));
+  var algo = enums.read(enums.symmetric, bytes[1]);
 
   // A string-to-key (S2K) specifier, length as defined above.
-  var s2klength = this.s2k.read(bytes.substr(2));
+  var s2klength = this.s2k.read(bytes.subarray(2, bytes.length));
 
   // Optionally, the encrypted session key itself, which is decrypted
   // with the string-to-key object.
   var done = s2klength + 2;
 
   if (done < bytes.length) {
-    this.encrypted = bytes.substr(done);
+    this.encrypted = bytes.subarray(done, bytes.length);
     this.sessionKeyEncryptionAlgorithm = algo;
   } else
     this.sessionKeyAlgorithm = algo;
@@ -15415,12 +15426,10 @@ SymEncryptedSessionKey.prototype.write = function() {
     this.sessionKeyAlgorithm :
     this.sessionKeyEncryptionAlgorithm;
 
-  var bytes = String.fromCharCode(this.version) +
-    String.fromCharCode(enums.write(enums.symmetric, algo)) +
-    this.s2k.write();
+  var bytes = util.concatUint8Array([new Uint8Array([this.version, enums.write(enums.symmetric, algo)]), this.s2k.write()]);
 
   if (this.encrypted !== null)
-    bytes += this.encrypted;
+    bytes = util.concatUint8Array([bytes, this.encrypted]);
   return bytes;
 };
 
@@ -15428,7 +15437,7 @@ SymEncryptedSessionKey.prototype.write = function() {
  * Decrypts the session key (only for public key encrypted session key
  * packets (tag 1)
  *
- * @return {String} The unencrypted session key
+ * @return {Uint8Array} The unencrypted session key
  */
 SymEncryptedSessionKey.prototype.decrypt = function(passphrase) {
   var algo = this.sessionKeyEncryptionAlgorithm !== null ?
@@ -15446,9 +15455,9 @@ SymEncryptedSessionKey.prototype.decrypt = function(passphrase) {
       algo, key, this.encrypted, null);
 
     this.sessionKeyAlgorithm = enums.read(enums.symmetric,
-      decrypted.charCodeAt(0));
+      decrypted[0]);
 
-    this.sessionKey = decrypted.substr(1);
+    this.sessionKey = decrypted.subarray(1,decrypted.length);
   }
 };
 
@@ -15462,14 +15471,14 @@ SymEncryptedSessionKey.prototype.encrypt = function(passphrase) {
   var length = crypto.cipher[algo].keySize;
   var key = this.s2k.produce_key(passphrase, length);
 
-  var algo_enum = String.fromCharCode(
-    enums.write(enums.symmetric, this.sessionKeyAlgorithm));
+  var algo_enum = new Uint8Array([
+    enums.write(enums.symmetric, this.sessionKeyAlgorithm)]);
 
   var private_key;
   if(this.sessionKey === null) {
     this.sessionKey = crypto.getRandomBytes(crypto.cipher[this.sessionKeyAlgorithm].keySize);
   }
-  private_key = algo_enum + this.sessionKey;
+  private_key = util.concatUint8Array([algo_enum, this.sessionKey]);
 
   this.encrypted = crypto.cfb.normalEncrypt(
     algo, key, private_key, null);
@@ -15482,7 +15491,7 @@ SymEncryptedSessionKey.prototype.postCloneTypeFix = function() {
   this.s2k = type_s2k.fromClone(this.s2k);
 };
 
-},{"../crypto":32,"../enums.js":43,"../type/s2k.js":73}],67:[function(require,module,exports){
+},{"../crypto":32,"../enums.js":43,"../type/s2k.js":73,"../util.js":74}],67:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15641,30 +15650,30 @@ function UserAttribute() {
 
 /**
  * parsing function for a user attribute packet (tag 17).
- * @param {String} input payload of a tag 17 packet
+ * @param {Uint8Array} input payload of a tag 17 packet
  */
 UserAttribute.prototype.read = function(bytes) {
   var i = 0;
   while (i < bytes.length) {
-    var len = packet.readSimpleLength(bytes.substr(i));
+    var len = packet.readSimpleLength(bytes.subarray(i, bytes.length));
     i += len.offset;
 
-    this.attributes.push(bytes.substr(i, len.len));
+    this.attributes.push(util.Uint8Array2str(bytes.subarray(i, i + len.len)));
     i += len.len;
   }
 };
 
 /**
- * Creates a string representation of the user attribute packet
- * @return {String} string representation
+ * Creates a binary representation of the user attribute packet
+ * @return {Uint8Array} string representation
  */
 UserAttribute.prototype.write = function() {
-  var result = '';
+  var arr = [];
   for (var i = 0; i < this.attributes.length; i++) {
-    result += packet.writeSimpleLength(this.attributes[i].length);
-    result += this.attributes[i];
+    arr.push(packet.writeSimpleLength(this.attributes[i].length));
+    arr.push(util.str2Uint8Array(this.attributes[i]));
   }
-  return result;
+  return util.concatUint8Array(arr);
 };
 
 /**
@@ -15731,18 +15740,18 @@ function Userid() {
 
 /**
  * Parsing function for a user id packet (tag 13).
- * @param {String} input payload of a tag 13 packet
+ * @param {Uint8Array} input payload of a tag 13 packet
  */
 Userid.prototype.read = function (bytes) {
-  this.userid = util.decode_utf8(bytes);
+  this.userid = util.decode_utf8(util.Uint8Array2str(bytes));
 };
 
 /**
- * Creates a string representation of the user id packet
- * @return {String} string representation
+ * Creates a binary representation of the user id packet
+ * @return {Uint8Array} binary representation
  */
 Userid.prototype.write = function () {
-  return util.encode_utf8(this.userid);
+  return util.str2Uint8Array(util.encode_utf8(this.userid));
 };
 
 },{"../enums.js":43,"../util.js":74}],71:[function(require,module,exports){
@@ -15791,11 +15800,11 @@ function Keyid() {
  * @param {String} input Input to read the key id from
  */
 Keyid.prototype.read = function(bytes) {
-  this.bytes = bytes.substr(0, 8);
+  this.bytes = util.Uint8Array2str(bytes.subarray(0, 8));
 };
 
 Keyid.prototype.write = function() {
-  return this.bytes;
+  return util.str2Uint8Array(this.bytes);
 };
 
 Keyid.prototype.toHex = function() {
@@ -15882,7 +15891,12 @@ function MPI() {
  * @return {Integer} Length of data read
  */
 MPI.prototype.read = function (bytes) {
-  var bits = (bytes.charCodeAt(0) << 8) | bytes.charCodeAt(1);
+
+  if(typeof bytes === 'string' || String.prototype.isPrototypeOf(bytes)) {
+    bytes = util.str2Uint8Array(bytes);
+  }
+
+  var bits = (bytes[0] << 8) | bytes[1];
 
   // Additional rules:
   //
@@ -15896,7 +15910,7 @@ MPI.prototype.read = function (bytes) {
   //      specified above is not applicable in JavaScript
   var bytelen = Math.ceil(bits / 8);
 
-  var raw = bytes.substr(2, bytelen);
+  var raw = util.Uint8Array2str(bytes.subarray(2, 2 + bytelen));
   this.fromBytes(raw);
 
   return 2 + bytelen;
@@ -15907,7 +15921,8 @@ MPI.prototype.fromBytes = function (bytes) {
 };
 
 MPI.prototype.toBytes = function () {
-  return this.write().substr(2);
+  var bytes = util.Uint8Array2str(this.write());
+  return bytes.substr(2);
 };
 
 MPI.prototype.byteLength = function () {
@@ -15915,11 +15930,11 @@ MPI.prototype.byteLength = function () {
 };
 
 /**
- * Converts the mpi object to a string as specified in {@link http://tools.ietf.org/html/rfc4880#section-3.2|RFC4880 3.2}
- * @return {String} mpi Byte representation
+ * Converts the mpi object to a bytes as specified in {@link http://tools.ietf.org/html/rfc4880#section-3.2|RFC4880 3.2}
+ * @return {Uint8Aray} mpi Byte representation
  */
 MPI.prototype.write = function () {
-  return this.data.toMPI();
+  return util.str2Uint8Array(this.data.toMPI());
 };
 
 MPI.prototype.toBigInteger = function () {
@@ -16006,30 +16021,30 @@ S2K.prototype.get_count = function () {
  */
 S2K.prototype.read = function (bytes) {
   var i = 0;
-  this.type = enums.read(enums.s2k, bytes.charCodeAt(i++));
-  this.algorithm = enums.read(enums.hash, bytes.charCodeAt(i++));
+  this.type = enums.read(enums.s2k, bytes[i++]);
+  this.algorithm = enums.read(enums.hash, bytes[i++]);
 
   switch (this.type) {
     case 'simple':
       break;
 
     case 'salted':
-      this.salt = bytes.substr(i, 8);
+      this.salt = bytes.subarray(i, i + 8);
       i += 8;
       break;
 
     case 'iterated':
-      this.salt = bytes.substr(i, 8);
+      this.salt = bytes.subarray(i, i + 8);
       i += 8;
 
       // Octet 10: count, a one-octet, coded value
-      this.c = bytes.charCodeAt(i++);
+      this.c = bytes[i++];
       break;
 
     case 'gnu':
-      if (bytes.substr(i, 3) == "GNU") {
+      if (util.Uint8Array2str(bytes.subarray(i, 3)) == "GNU") {
         i += 3; // GNU
-        var gnuExtType = 1000 + bytes.charCodeAt(i++);
+        var gnuExtType = 1000 + bytes[i++];
         if (gnuExtType == 1001) {
           this.type = gnuExtType;
           // GnuPG extension mode 1001 -- don't write secret key at all
@@ -16050,33 +16065,33 @@ S2K.prototype.read = function (bytes) {
 
 
 /**
- * writes an s2k hash based on the inputs.
- * @return {String} Produced key of hashAlgorithm hash length
+ * Serializes s2k information
+ * @return {Uint8Array} binary representation of s2k
  */
 S2K.prototype.write = function () {
-  var bytes = String.fromCharCode(enums.write(enums.s2k, this.type));
-  bytes += String.fromCharCode(enums.write(enums.hash, this.algorithm));
+
+  var arr = [new Uint8Array([enums.write(enums.s2k, this.type), enums.write(enums.hash, this.algorithm)])];
 
   switch (this.type) {
     case 'simple':
       break;
     case 'salted':
-      bytes += this.salt;
+      arr.push(this.salt);
       break;
     case 'iterated':
-      bytes += this.salt;
-      bytes += String.fromCharCode(this.c);
+      arr.push(this.salt);
+      arr.push(new Uint8Array([this.c]));
       break;
   }
 
-  return bytes;
+  return util.concatUint8Array(arr);
 };
 
 /**
  * Produces a key using the specified passphrase and the defined
  * hashAlgorithm
  * @param {String} passphrase Passphrase containing user input
- * @return {String} Produced key with a length corresponding to
+ * @return {Uint8Array} Produced key with a length corresponding to
  * hashAlgorithm hash length
  */
 S2K.prototype.produce_key = function (passphrase, numBytes) {
@@ -16087,16 +16102,16 @@ S2K.prototype.produce_key = function (passphrase, numBytes) {
 
     switch (s2k.type) {
       case 'simple':
-        return crypto.hash.digest(algorithm, prefix + passphrase);
+        return util.str2Uint8Array(crypto.hash.digest(algorithm, prefix + passphrase));
 
       case 'salted':
-        return crypto.hash.digest(algorithm,
-          prefix + s2k.salt + passphrase);
+        return util.str2Uint8Array(crypto.hash.digest(algorithm,
+          prefix + util.Uint8Array2str(s2k.salt) + passphrase));
 
       case 'iterated':
         var isp = [],
           count = s2k.get_count();
-        data = s2k.salt + passphrase;
+        data = util.Uint8Array2str(s2k.salt) + passphrase;
 
         while (isp.length * data.length < count)
           isp.push(data);
@@ -16106,19 +16121,22 @@ S2K.prototype.produce_key = function (passphrase, numBytes) {
         if (isp.length > count)
           isp = isp.substr(0, count);
 
-        return crypto.hash.digest(algorithm, prefix + isp);
+        return util.str2Uint8Array(crypto.hash.digest(algorithm, prefix + isp));
     }
   }
 
-  var result = '',
+  var arr = [],
+    rlength = 0,
     prefix = '';
 
-  while (result.length <= numBytes) {
-    result += round(prefix, this);
+  while (rlength <= numBytes) {
+    var result = round(prefix, this);
+    arr.push(result);
+    rlength += result.length;
     prefix += String.fromCharCode(0);
   }
 
-  return result.substr(0, numBytes);
+  return util.concatUint8Array(arr).subarray(0, numBytes);
 };
 
 module.exports.fromClone = function (clone) {
@@ -16164,16 +16182,16 @@ module.exports = {
 
     for (var i = 0; i < bytes.length; i++) {
       n <<= 8;
-      n += bytes.charCodeAt(i);
+      n += bytes[i];
     }
 
     return n;
   },
 
   writeNumber: function (n, bytes) {
-    var b = '';
+    var b = new Uint8Array(bytes);
     for (var i = 0; i < bytes; i++) {
-      b += String.fromCharCode((n >> (8 * (bytes - i - 1))) & 0xFF);
+      b[i] = (n >> (8 * (bytes - i - 1))) & 0xFF;
     }
 
     return b;
@@ -16320,6 +16338,12 @@ module.exports = {
    * @return {Uint8Array} The array of (binary) integers
    */
   str2Uint8Array: function (str) {
+
+    // Uncomment for debugging
+    if(!(typeof str === 'string') && !String.prototype.isPrototypeOf(str)) {
+      throw new Error('Data must be in the form of a string');
+    }
+
     var result = new Uint8Array(str.length);
     for (var i = 0; i < str.length; i++) {
       result[i] = str.charCodeAt(i);
@@ -16335,17 +16359,96 @@ module.exports = {
    * @return {String} String representation of the array
    */
   Uint8Array2str: function (bin) {
-    var result = '';
-    for (var i = 0; i < bin.length; i++) {
-      result += String.fromCharCode(bin[i]);
+
+    // Uncomment for debugging
+    if(!Uint8Array.prototype.isPrototypeOf(bin)) {
+      throw new Error('Data must be in the form of a Uint8Array');
     }
-    return result;
+
+    var result = [];
+    for (var i = 0; i < bin.length; i++) {
+      result[i] = String.fromCharCode(bin[i]);
+    }
+    return result.join('');
   },
 
   /**
-   * Calculates a 16bit sum of a string by adding each character
+   * Concat Uint8arrays
+   * @function module:util.concatUint8Array
+   * @param {Array<Uint8array>} Array of Uint8Arrays to concatenate
+   * @return {Uint8array} Concatenated array
+   */
+   concatUint8Array: function (arrays) {
+
+    var totalLength = 0;
+    arrays.forEach(function (element) {
+
+      // Uncomment for debugging
+      if(!Uint8Array.prototype.isPrototypeOf(element)) {
+        throw new Error('Data must be in the form of a Uint8Array');
+      }
+
+      totalLength += element.length;
+    });
+
+    var result = new Uint8Array(totalLength);
+    var pos = 0;
+    arrays.forEach(function (element) {
+      result.set(element,pos);
+      pos += element.length;
+    });
+
+    return result;
+   },
+
+  /**
+   * Deep copy Uint8Array
+   * @function module:util.copyUint8Array
+   * @param {Uint8Array} Array to copy
+   * @return {Uint8Array} new Uint8Array
+   */
+  copyUint8Array: function (array) {
+
+    // Uncomment for debugging
+    if(!Uint8Array.prototype.isPrototypeOf(array)) {
+      throw new Error('Data must be in the form of a Uint8Array');
+    }
+
+    var copy = new Uint8Array(array.length);
+    copy.set(array);
+    return copy;
+  },
+
+  /**
+   * Check Uint8Array equality
+   * @function module:util.equalsUint8Array
+   * @param {Uint8Array} first array
+   * @param {Uint8Array} second array
+   * @return {Boolean} equality
+   */
+  equalsUint8Array: function (array1, array2) {
+
+    // Uncomment for debugging
+    if(!Uint8Array.prototype.isPrototypeOf(array1) || !Uint8Array.prototype.isPrototypeOf(array2)) {
+      throw new Error('Data must be in the form of a Uint8Array');
+    }
+
+    if(array1.length !== array2.length) {
+      return false;
+    }
+
+    for(var i = 0; i < array1.length; i++) {
+      if(array1[i] !== array2[i]) {
+        return false;
+      }
+    }
+    return true;
+  },
+
+  /**
+   * Calculates a 16bit sum of a Uint8Array by adding each character
    * codes modulus 65535
-   * @param {String} text String to create a sum of
+   * @param {Uint8Array} Uint8Array to create a sum of
    * @return {Integer} An integer containing the sum of all character
    * codes % 65535
    */
@@ -16357,7 +16460,7 @@ module.exports = {
       }
     };
     for (var i = 0; i < text.length; i++) {
-      checksum.add(text.charCodeAt(i));
+      checksum.add(text[i]);
     }
     return checksum.s;
   },
@@ -16599,7 +16702,7 @@ AsyncProxy.prototype.terminate = function() {
 /**
  * Encrypts message text/data with keys or passwords
  * @param  {(Array<module:key~Key>|module:key~Key)} keys       array of keys or single key, used to encrypt the message
- * @param  {String} data                                       text/data message as native JavaScript string/binary string
+ * @param  {Uint8Array} data                                   message as Uint8Array
  * @param  {(Array<String>|String)} passwords                  passwords for the message
  * @param  {Object} params                                     parameter object with optional properties binary {Boolean}, 
  *                                                             filename {String}, and packets {Boolean}
@@ -16628,7 +16731,7 @@ AsyncProxy.prototype.encryptMessage = function(keys, data, passwords, params) {
 
 /**
  * Encrypts session key with keys or passwords
- * @param  {String} sessionKey                                 sessionKey as a binary string
+ * @param  {Uint8Array} sessionKey                             sessionKey as Uint8Array
  * @param  {String} algo                                       algorithm of sessionKey
  * @param  {(Array<module:key~Key>|module:key~Key)} keys       array of keys or single key, used to encrypt the key
  * @param  {(Array<String>|String)} passwords                  passwords for the message
@@ -16659,7 +16762,7 @@ AsyncProxy.prototype.encryptSessionKey = function(sessionKey, algo, keys, passwo
  * Signs message text and encrypts it
  * @param  {(Array<module:key~Key>|module:key~Key)}  publicKeys array of keys or single key, used to encrypt the message
  * @param  {module:key~Key}    privateKey private key with decrypted secret key data for signing
- * @param  {String} text       message as native JavaScript string
+ * @param  {Uint8Array} text       message as Uint8Array
  */
 AsyncProxy.prototype.signAndEncryptMessage = function(publicKeys, privateKey, text) {
   var self = this;
@@ -16766,7 +16869,7 @@ AsyncProxy.prototype.decryptAndVerifyMessage = function(privateKey, publicKeys, 
 /**
  * Signs a cleartext message
  * @param  {(Array<module:key~Key>|module:key~Key)}  privateKeys array of keys or single key, with decrypted secret key data to sign cleartext
- * @param  {String} text        cleartext
+ * @param  {Uint8Array} text        cleartext
  */
 AsyncProxy.prototype.signClearMessage = function(privateKeys, text) {
   var self = this;
